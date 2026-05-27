@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "prhub-cde",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "cron:rfi-overdue": "tsx scripts/check-rfi-overdue.ts",
+    "test:smtp": "tsx --env-file=.env scripts/test-smtp.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

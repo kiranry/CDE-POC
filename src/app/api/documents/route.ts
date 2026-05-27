@@ -53,9 +53,23 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  try {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+  });
+  if (!dbUser) {
+    return NextResponse.json(
+      {
+        error:
+          "Your login session is from an old database. Sign out, then sign in again.",
+      },
+      { status: 401 },
+    );
   }
 
   const formData = await request.formData();
@@ -126,7 +140,7 @@ export async function POST(request: Request) {
       sizeBytes: BigInt(buffer.length),
       description,
       uploadedByPartyId: activeParty.id,
-      uploadedByUserId: session.user.id,
+      uploadedByUserId: dbUser.id,
     },
     include: {
       uploadedByParty: true,
@@ -174,4 +188,10 @@ export async function POST(request: Request) {
       uploadedAt: docVersion.uploadedAt,
     },
   });
+  } catch (err) {
+    console.error("[documents POST]", err);
+    const message =
+      err instanceof Error ? err.message : "Upload failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

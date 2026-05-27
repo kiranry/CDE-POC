@@ -18,6 +18,7 @@ export type ActivityItem = {
 const TYPE_LABELS: Record<string, string> = {
   DOCUMENT_UPLOAD: "Upload",
   DOCUMENT_VERSION: "New version",
+  DOCUMENT_DELETE: "Deleted",
   RFI_CREATED: "RFI raised",
   RFI_UPDATED: "RFI updated",
   RFI_RESOLVED: "RFI resolved",

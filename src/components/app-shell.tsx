@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { NotificationPanel } from "@/components/notification-panel";
 import { PartySwitcher } from "@/components/party-switcher";
 import { PARTY_LABELS } from "@/lib/party-labels";
@@ -15,10 +15,26 @@ const NAV = [
   { href: "/stakeholders", label: "Stakeholders" },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+type AppShellProps = {
+  children: React.ReactNode;
+  userName: string;
+  loggedInParty: PartyCode;
+  activePartyCode: PartyCode;
+};
+
+export function AppShell({
+  children,
+  userName,
+  loggedInParty,
+  activePartyCode,
+}: AppShellProps) {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const partyCode = session?.user?.partyCode as PartyCode | undefined;
+  const actingAsAnother = activePartyCode !== loggedInParty;
+
+  async function handleSignOut() {
+    await fetch("/api/party/clear", { method: "POST" });
+    signOut({ callbackUrl: "/login" });
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -50,16 +66,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <NotificationPanel />
 
-            {partyCode && <PartySwitcher loggedInParty={partyCode} />}
+            <PartySwitcher
+              loggedInParty={loggedInParty}
+              activeParty={activePartyCode}
+            />
 
             <div className="hidden text-right text-xs text-slate-500 sm:block">
-              <p className="font-medium text-slate-700">{session?.user?.name}</p>
-              <p>Logged in: {partyCode ? PARTY_LABELS[partyCode] : "—"}</p>
+              <p className="font-medium text-slate-700">{userName}</p>
+              <p>Account: {PARTY_LABELS[loggedInParty]}</p>
+              {actingAsAnother && (
+                <p className="font-medium text-blue-700">
+                  Acting as: {PARTY_LABELS[activePartyCode]}
+                </p>
+              )}
             </div>
 
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={handleSignOut}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
             >
               Sign out

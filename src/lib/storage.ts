@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -77,6 +78,26 @@ export async function getFile(storageKey: string): Promise<Buffer> {
 
   const filePath = path.join(localRoot, storageKey);
   return readFile(filePath);
+}
+
+/** Best-effort remove; ignores missing objects. */
+export async function deleteFile(storageKey: string): Promise<void> {
+  try {
+    if (storageMode === "s3") {
+      await getS3Client().send(
+        new DeleteObjectCommand({
+          Bucket: process.env.S3_BUCKET ?? "prhub-cde",
+          Key: storageKey,
+        }),
+      );
+      return;
+    }
+
+    const filePath = path.join(localRoot, storageKey);
+    await unlink(filePath);
+  } catch {
+    // File may already be missing
+  }
 }
 
 export function buildStorageKey(

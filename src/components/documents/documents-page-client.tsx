@@ -62,6 +62,29 @@ export function DocumentsPageClient() {
   }, [loadDocuments]);
 
   useEffect(() => {
+    const onPartyChange = () => loadDocuments();
+    window.addEventListener("cde-party-changed", onPartyChange);
+    return () => window.removeEventListener("cde-party-changed", onPartyChange);
+  }, [loadDocuments]);
+
+  async function deleteDocument(doc: DocumentRow) {
+    if (
+      !window.confirm(
+        `Delete "${doc.name}" and all ${doc.currentVersion} version(s)? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error ?? "Delete failed");
+      return;
+    }
+    loadDocuments();
+  }
+
+  useEffect(() => {
     if (!historyFromUrl) return;
     const doc = documents.find((d) => d.id === historyFromUrl);
     if (doc) {
@@ -94,8 +117,8 @@ export function DocumentsPageClient() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
           <p className="text-sm text-slate-500">
-            Upload and download only — metadata register with uploader and version
-            history.
+            Upload, download, version history, and delete — metadata register with
+            uploader.
           </p>
         </div>
         <button
@@ -196,6 +219,13 @@ export function DocumentsPageClient() {
                           >
                             History
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteDocument(doc)}
+                            className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -221,6 +251,7 @@ export function DocumentsPageClient() {
           documentId={historyDoc.id}
           documentName={historyDoc.name}
           onClose={() => setHistoryDoc(null)}
+          onChanged={loadDocuments}
         />
       )}
     </div>

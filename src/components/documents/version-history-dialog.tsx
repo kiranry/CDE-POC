@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Version = {
   id: string;
@@ -17,26 +17,63 @@ export function VersionHistoryDialog({
   documentId,
   documentName,
   onClose,
+  onChanged,
 }: {
   documentId: string;
   documentName: string;
   onClose: () => void;
+  onChanged?: () => void;
 }) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [folderLabel, setFolderLabel] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number | null>(null);
+
+  const loadVersions = useCallback(async () => {
+    setLoading(true);
+    const res = await fetch(`/api/documents/${documentId}/versions`);
+    const data = await res.json();
+    setVersions(data.versions ?? []);
+    setFolderLabel(
+      `${data.document?.folderCode} — ${data.document?.folderName}`,
+    );
+    setLoading(false);
+    return data;
+  }, [documentId]);
 
   useEffect(() => {
-    fetch(`/api/documents/${documentId}/versions`)
-      .then((r) => r.json())
-      .then((data) => {
-        setVersions(data.versions ?? []);
-        setFolderLabel(
-          `${data.document?.folderCode} — ${data.document?.folderName}`,
-        );
-      })
-      .finally(() => setLoading(false));
-  }, [documentId]);
+    loadVersions();
+  }, [loadVersions]);
+
+  async function deleteVersion(v: Version) {
+    if (
+      !window.confirm(
+        `Delete v${v.version} of "${documentName}"?${versions.length === 1 ? " This removes the entire document." : ""}`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(v.version);
+    try {
+      const res = await fetch(
+        `/api/documents/${documentId}?version=${v.version}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? "Delete failed");
+        return;
+      }
+      onChanged?.();
+      if (data.documentRemoved) {
+        onClose();
+        return;
+      }
+      await loadVersions();
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -59,7 +96,7 @@ export function VersionHistoryDialog({
                   <th className="pb-2 pr-4">Uploaded by</th>
                   <th className="pb-2 pr-4">Date</th>
                   <th className="pb-2 pr-4">Size</th>
-                  <th className="pb-2">Action</th>
+                  <th className="pb-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -78,12 +115,22 @@ export function VersionHistoryDialog({
                     </td>
                     <td className="py-3 pr-4">{v.sizeLabel}</td>
                     <td className="py-3">
-                      <a
-                        href={`/api/documents/${documentId}/download?version=${v.version}`}
-                        className="rounded bg-slate-800 px-3 py-1 text-xs text-white hover:bg-slate-900"
-                      >
-                        Download
-                      </a>
+                      <div className="flex flex-wrap gap-2">
+                        <a
+                          href={`/api/documents/${documentId}/download?version=${v.version}`}
+                          className="rounded bg-slate-800 px-3 py-1 text-xs text-white hover:bg-slate-900"
+                        >
+                          Download
+                        </a>
+                        <button
+                          type="button"
+                          disabled={deleting === v.version}
+                          onClick={() => deleteVersion(v)}
+                          className="rounded border border-red-200 px-3 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deleting === v.version ? "…" : "Delete"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

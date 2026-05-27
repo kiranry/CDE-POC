@@ -34,8 +34,22 @@ export function UploadDialog({
       if (description) form.append("description", description);
 
       const res = await fetch("/api/documents", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload failed");
+      const text = await res.text();
+      let data: { error?: string } = {};
+      if (text) {
+        try {
+          data = JSON.parse(text) as { error?: string };
+        } catch {
+          throw new Error(
+            res.ok
+              ? "Invalid server response"
+              : `Upload failed (${res.status})`,
+          );
+        }
+      } else if (!res.ok) {
+        throw new Error(`Upload failed (${res.status})`);
+      }
+      if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
       window.dispatchEvent(new CustomEvent("cde-notifications-changed"));
       onUploaded();
       onClose();

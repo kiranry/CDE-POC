@@ -25,6 +25,10 @@ function buildActivityLink(
   type: ActivityType,
   metadata: ActivityMetadata | null,
 ): { href: string; linkLabel: string } {
+  if (type === "DOCUMENT_DELETE") {
+    return { href: "/documents", linkLabel: "Go to documents" };
+  }
+
   if (
     (type === "DOCUMENT_UPLOAD" || type === "DOCUMENT_VERSION") &&
     metadata?.documentId
