@@ -24,8 +24,9 @@
 .DS_Store
 *.pem
 
-# docs stay local only (not pushed to GitHub)
+# docs local only — README is the exception
 *.md
+!README.md
 
 # debug
 npm-debug.log*
