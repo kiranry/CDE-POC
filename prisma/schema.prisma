@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartyCode {
+  A
+  B
+  C
+  D
+}
+
+enum ActivityType {
+  DOCUMENT_UPLOAD
+  DOCUMENT_VERSION
+  RFI_CREATED
+  RFI_UPDATED
+  RFI_RESOLVED
+  RFI_ESCALATED
+  RFI_OVERDUE
+}
+
+enum NotificationType {
+  DOCUMENT_UPLOAD
+  DOCUMENT_VERSION
+  RFI_RAISED
+  RFI_CONFIRMATION
+  RFI_RESOLVED
+  RFI_ESCALATED
+  RFI_OVERDUE
+}
+
+enum RfiStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  ESCALATED
+}
+
+enum RfiEventType {
+  CREATED
+  PENDING
+  RESOLVED
+  ESCALATED
+}
+
+model Party {
+  id           String    @id @default(cuid())
+  code         PartyCode @unique
+  name         String
+  roleLabel    String
+  contactEmail String    @default("")
+  users        User[]
+  folders   Folder[]
+  uploads           DocumentVersion[] @relation("UploadedByParty")
+  activities          ActivityLog[]     @relation("ActorParty")
+  notifications       Notification[]
+  rfisRaised          Rfi[]             @relation("RfiRaisedBy")
+  rfisRespondent      Rfi[]             @relation("RfiRespondent")
+  rfiEvents           RfiEvent[]        @relation("RfiEventActor")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  partyId      String
+  party        Party    @relation(fields: [partyId], references: [id])
+  uploads      DocumentVersion[] @relation("UploadedByUser")
+  createdAt    DateTime @default(now())
+}
+
+model Folder {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  name       String
+  partyCode  PartyCode
+  partyId    String
+  party      Party    @relation(fields: [partyId], references: [id])
+  sortOrder  Int
+  documents  Document[]
+}
+
+model Document {
+  id               String            @id @default(cuid())
+  name             String
+  folderId         String
+  folder           Folder            @relation(fields: [folderId], references: [id])
+  currentVersion   Int               @default(1)
+  versions         DocumentVersion[]
+  rfis             Rfi[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([name, folderId])
+  @@index([folderId])
+}
+
+model DocumentVersion {
+  id                String   @id @default(cuid())
+  documentId        String
+  document          Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version           Int
+  storageKey        String
+  mimeType          String
+  sizeBytes         BigInt
+  description       String?
+  uploadedByPartyId String
+  uploadedByParty   Party    @relation("UploadedByParty", fields: [uploadedByPartyId], references: [id])
+  uploadedByUserId  String
+  uploadedByUser    User     @relation("UploadedByUser", fields: [uploadedByUserId], references: [id])
+  uploadedAt        DateTime @default(now())
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+model ActivityLog {
+  id           String       @id @default(cuid())
+  type         ActivityType
+  summary      String
+  metadata     Json?
+  actorPartyId String?
+  actorParty   Party?       @relation("ActorParty", fields: [actorPartyId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([createdAt])
+}
+
+model Notification {
+  id               String           @id @default(cuid())
+  type             NotificationType
+  recipientPartyId String
+  recipientParty   Party            @relation(fields: [recipientPartyId], references: [id])
+  title            String
+  message          String
+  payload          Json?
+  readAt           DateTime?
+  createdAt        DateTime         @default(now())
+
+  @@index([recipientPartyId, readAt])
+  @@index([createdAt])
+}
+
+model Rfi {
+  id                  String     @id @default(cuid())
+  displayId           String     @unique
+  subject             String
+  description         String
+  raisedByPartyId     String
+  raisedByParty       Party      @relation("RfiRaisedBy", fields: [raisedByPartyId], references: [id])
+  respondentPartyId   String
+  respondentParty     Party      @relation("RfiRespondent", fields: [respondentPartyId], references: [id])
+  relatedDocumentId   String?
+  relatedDocument     Document?  @relation(fields: [relatedDocumentId], references: [id])
+  raisedAt            DateTime   @default(now())
+  dueAt               DateTime
+  status              RfiStatus  @default(OPEN)
+  resolutionText      String?
+  overdueNotifiedAt   DateTime?
+  events              RfiEvent[]
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([status])
+  @@index([raisedByPartyId])
+  @@index([respondentPartyId])
+  @@index([dueAt])
+}
+
+model RfiEvent {
+  id           String       @id @default(cuid())
+  rfiId        String
+  rfi          Rfi          @relation(fields: [rfiId], references: [id], onDelete: Cascade)
+  eventType    RfiEventType
+  fromStatus   RfiStatus?
+  toStatus     RfiStatus
+  actorPartyId String
+  actorParty   Party        @relation("RfiEventActor", fields: [actorPartyId], references: [id])
+  note         String?
+  createdAt    DateTime     @default(now())
+
+  @@index([rfiId, createdAt])
+}

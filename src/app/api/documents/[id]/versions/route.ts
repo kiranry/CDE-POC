@@ -1,0 +1,53 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { formatBytes } from "@/lib/files";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const document = await prisma.document.findUnique({
+    where: { id },
+    include: {
+      folder: true,
+      versions: {
+        orderBy: { version: "desc" },
+        include: {
+          uploadedByParty: true,
+          uploadedByUser: true,
+        },
+      },
+    },
+  });
+
+  if (!document) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    document: {
+      id: document.id,
+      name: document.name,
+      folderCode: document.folder.code,
+      folderName: document.folder.name,
+    },
+    versions: document.versions.map((v) => ({
+      id: v.id,
+      version: v.version,
+      uploadedByParty: v.uploadedByParty.code,
+      uploadedByPartyName: v.uploadedByParty.name,
+      uploadedByUser: v.uploadedByUser.name,
+      uploadedAt: v.uploadedAt,
+      sizeBytes: Number(v.sizeBytes),
+      sizeLabel: formatBytes(v.sizeBytes),
+      description: v.description,
+    })),
+  });
+}
