@@ -6,6 +6,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const storageMode = process.env.STORAGE_MODE ?? "local";
 const localRoot = path.join(
@@ -15,7 +16,7 @@ const localRoot = path.join(
 
 let s3Client: S3Client | null = null;
 
-function usePathStyle(): boolean {
+function shouldUsePathStyle(): boolean {
   // MinIO / local S3: true. Cloudflare R2: set S3_FORCE_PATH_STYLE=false
   if (process.env.S3_FORCE_PATH_STYLE === "false") return false;
   if (process.env.S3_FORCE_PATH_STYLE === "true") return true;
@@ -35,7 +36,7 @@ function getS3Client(): S3Client {
         accessKeyId: process.env.S3_ACCESS_KEY ?? "",
         secretAccessKey: process.env.S3_SECRET_KEY ?? "",
       },
-      forcePathStyle: usePathStyle(),
+      forcePathStyle: shouldUsePathStyle(),
     });
   }
   return s3Client;
@@ -78,6 +79,33 @@ export async function getFile(storageKey: string): Promise<Buffer> {
 
   const filePath = path.join(localRoot, storageKey);
   return readFile(filePath);
+}
+
+/** Short-lived direct download URL — avoids Vercel function payload limits for large files. */
+export async function getPresignedDownloadUrl(
+  storageKey: string,
+  options?: {
+    expiresIn?: number;
+    fileName?: string;
+    mimeType?: string;
+  },
+): Promise<string> {
+  if (storageMode !== "s3") {
+    throw new Error("Presigned URLs require STORAGE_MODE=s3");
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: process.env.S3_BUCKET ?? "prhub-cde",
+    Key: storageKey,
+    ResponseContentDisposition: options?.fileName
+      ? `inline; filename="${options.fileName.replace(/"/g, "_")}"`
+      : undefined,
+    ResponseContentType: options?.mimeType,
+  });
+
+  return getSignedUrl(getS3Client(), command, {
+    expiresIn: options?.expiresIn ?? 900,
+  });
 }
 
 /** Best-effort remove; ignores missing objects. */

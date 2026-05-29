@@ -6,7 +6,9 @@ import {
 } from "@/lib/evm-import-token";
 import { isEvmScheduleFile } from "@/lib/files";
 import { prisma } from "@/lib/prisma";
-import { getFile } from "@/lib/storage";
+import { getFile, getPresignedDownloadUrl } from "@/lib/storage";
+
+const storageMode = process.env.STORAGE_MODE ?? "local";
 
 export async function OPTIONS(
   request: Request,
@@ -75,8 +77,6 @@ export async function GET(
     );
   }
 
-  const buffer = await getFile(docVersion.storageKey);
-
   await logActivity({
     type: "DOCUMENT_UPLOAD",
     summary: `EVM Dashboard imported ${document.name} from ${document.folder.code}`,
@@ -88,6 +88,32 @@ export async function GET(
       version: versionNumber,
     },
   });
+
+  // Production (R2/S3): return a presigned URL so the browser fetches directly —
+  // Vercel serverless functions cannot return bodies larger than ~4.5 MB.
+  if (storageMode === "s3") {
+    const downloadUrl = await getPresignedDownloadUrl(docVersion.storageKey, {
+      expiresIn: 15 * 60,
+      fileName: document.name,
+      mimeType: docVersion.mimeType || "application/xml",
+    });
+
+    return NextResponse.json(
+      {
+        downloadUrl,
+        fileName: document.name,
+        mimeType: docVersion.mimeType || "application/xml",
+      },
+      {
+        headers: {
+          ...cors,
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
+  const buffer = await getFile(docVersion.storageKey);
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
