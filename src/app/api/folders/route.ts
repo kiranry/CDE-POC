@@ -10,6 +10,7 @@ export async function GET() {
   }
 
   const activePartyCode = await getActivePartyCode(session.user.partyCode);
+  const loggedInPartyCode = session.user.partyCode;
 
   const folders = await prisma.folder.findMany({
     orderBy: { sortOrder: "asc" },
@@ -27,5 +28,15 @@ export async function GET() {
       .map((f) => ({ id: f.id, code: f.code, name: f.name })),
   }));
 
-  return NextResponse.json({ parties: byParty, activePartyCode });
+  byParty.sort((a, b) => {
+    if (a.partyCode === loggedInPartyCode) return -1;
+    if (b.partyCode === loggedInPartyCode) return 1;
+    return a.partyCode.localeCompare(b.partyCode);
+  });
+
+  return NextResponse.json({
+    parties: byParty,
+    activePartyCode,
+    loggedInPartyCode,
+  });
 }
