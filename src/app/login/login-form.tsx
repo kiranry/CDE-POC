@@ -5,10 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { loginAction, type LoginState } from "./actions";
 
 const DEMO_ACCOUNTS = [
-  { email: "party-a@prhub.local", label: "Party A (PMC) — party-a@prhub.local" },
-  { email: "party-b@prhub.local", label: "Party B (Design) — party-b@prhub.local" },
-  { email: "party-c@prhub.local", label: "Party C (Contractor) — party-c@prhub.local" },
-  { email: "party-d@prhub.local", label: "Party D (Sub-Con) — party-d@prhub.local" },
+  { email: "party-a@prhub.local", label: "VISL (PMC) — party-a@prhub.local" },
+  { email: "party-b@prhub.local", label: "SR (Southern Railway) — party-b@prhub.local" },
+  { email: "party-c@prhub.local", label: "Adani — party-c@prhub.local" },
+  { email: "party-d@prhub.local", label: "KRCL (Konkan Railway) — party-d@prhub.local" },
 ];
 
 export function LoginForm() {

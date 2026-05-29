@@ -97,8 +97,8 @@ export function RfiPageClient() {
         {(isPmc
           ? ([
               ["all", "All RFIs"],
-              ["raised", "Raised by PMC"],
-              ["against", "Against PMC"],
+              ["raised", "Raised by VISL"],
+              ["against", "Against VISL"],
             ] as const)
           : ([
               ["all", "All my RFIs"],

@@ -40,7 +40,7 @@ export async function sendRfiOverdueEmails(row: OverdueRfiRow): Promise<void> {
       to: adminEmail,
       subject: `[PRHUB CDE] OVERDUE RFI — admin alert: ${row.displayId}`,
       text: [
-        `Hello Party A (PMC / main organisation),`,
+        `Hello VISL (PMC / Party A),`,
         ``,
         `The following RFI has not been completed within the required 7 calendar days.`,
         `This enquiry is overdue and requires your oversight.`,

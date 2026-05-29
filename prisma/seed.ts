@@ -12,31 +12,31 @@ const PARTIES: {
 }[] = [
   {
     code: "A",
-    name: "Party A — Project Management Consultant (PMC)",
-    roleLabel: "CDE Administrator & Oversight",
+    name: "VISL — Vizhinjam International Seaport Limited (PMC)",
+    roleLabel: "Project Management Consultant (PMC)",
     email: "party-a@prhub.local",
-    userName: "PMC User",
+    userName: "VISL User",
   },
   {
     code: "B",
-    name: "Party B — Design Consultant",
-    roleLabel: "Design Document Owner",
+    name: "SR — Southern Railway",
+    roleLabel: "Southern Railway",
     email: "party-b@prhub.local",
-    userName: "Design User",
+    userName: "SR User",
   },
   {
     code: "C",
-    name: "Party C — Main Contractor",
-    roleLabel: "Construction Document Owner",
+    name: "Adani",
+    roleLabel: "Adani",
     email: "party-c@prhub.local",
-    userName: "Contractor User",
+    userName: "Adani User",
   },
   {
     code: "D",
-    name: "Party D — Sub-Contractor / Specialist",
-    roleLabel: "Specialist Package Owner",
+    name: "KRCL — Konkan Railway Corporation Limited",
+    roleLabel: "Konkan Railway Corporation Limited",
     email: "party-d@prhub.local",
-    userName: "Sub-Contractor User",
+    userName: "KRCL User",
   },
 ];
 
