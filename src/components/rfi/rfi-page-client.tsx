@@ -159,8 +159,8 @@ export function RfiPageClient() {
                     {r.displayId}
                   </td>
                   <td className="max-w-xs truncate px-4 py-3">{r.subject}</td>
-                  <td className="px-4 py-3">Party {r.raisedBy}</td>
-                  <td className="px-4 py-3">Party {r.against}</td>
+                  <td className="px-4 py-3">{r.raisedByName}</td>
+                  <td className="px-4 py-3">{r.againstName}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {new Date(r.raisedAt).toLocaleDateString()}
                   </td>

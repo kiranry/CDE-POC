@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { UploadIcon } from "@/components/icons/upload-icon";
 import { ACCEPT_ATTRIBUTE } from "@/lib/files";
 
 export function UploadDialog({
@@ -18,6 +19,14 @@ export function UploadDialog({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function clearFile() {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +60,7 @@ export function UploadDialog({
       }
       if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
       window.dispatchEvent(new CustomEvent("cde-notifications-changed"));
+      clearFile();
       onUploaded();
       onClose();
     } catch (err) {
@@ -75,12 +85,45 @@ export function UploadDialog({
               File
             </label>
             <input
+              ref={fileInputRef}
               type="file"
               accept={ACCEPT_ATTRIBUTE}
               required
-              className="mt-1 w-full text-sm"
+              className="sr-only"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
+            {!file ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-2 flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700"
+              >
+                <UploadIcon className="h-10 w-10" />
+                <span className="text-sm font-medium">Choose a file to upload</span>
+                <span className="text-xs text-slate-500">
+                  PDF, Office, CAD, images, and more
+                </span>
+              </button>
+            ) : (
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  disabled={loading}
+                  className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-white disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700">
@@ -104,10 +147,17 @@ export function UploadDialog({
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="rounded-md bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+              disabled={loading || !file}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
             >
-              {loading ? "Uploading…" : "Upload"}
+              {loading ? (
+                "Uploading…"
+              ) : (
+                <>
+                  <UploadIcon className="h-4 w-4" />
+                  Upload
+                </>
+              )}
             </button>
           </div>
         </form>

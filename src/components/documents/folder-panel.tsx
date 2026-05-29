@@ -76,7 +76,7 @@ export function FolderPanel({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-700">
-                    Party {party.partyCode}
+                    {party.partyName}
                     {isOwnParty && (
                       <span className="ml-1.5 font-normal normal-case text-blue-700">
                         (your folders)

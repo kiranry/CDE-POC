@@ -134,15 +134,11 @@ export function RfiDetailDialog({
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-slate-500">Raised by</dt>
-                <dd className="font-medium">
-                  Party {rfi.raisedBy} — {rfi.raisedByName}
-                </dd>
+                <dd className="font-medium">{rfi.raisedByName}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Against</dt>
-                <dd className="font-medium">
-                  Party {rfi.against} — {rfi.againstName}
-                </dd>
+                <dd className="font-medium">{rfi.againstName}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Raised</dt>
@@ -268,7 +264,7 @@ export function RfiDetailDialog({
                       )}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Party {e.actorParty} — {new Date(e.createdAt).toLocaleString()}
+                      {e.actorPartyName} — {new Date(e.createdAt).toLocaleString()}
                     </p>
                     {e.note && (
                       <p className="mt-1 text-sm text-slate-600">{e.note}</p>

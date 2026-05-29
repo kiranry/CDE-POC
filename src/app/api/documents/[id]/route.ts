@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { canDeleteDocument, canDeleteVersion } from "@/lib/documents";
 import { getActivePartyCode } from "@/lib/party-context";
+import { getPartyLabel } from "@/lib/party-labels";
 import { prisma } from "@/lib/prisma";
 import { deleteFile } from "@/lib/storage";
 
@@ -39,7 +40,7 @@ export async function DELETE(
     where: { code: activePartyCode },
   });
   if (!activeParty) {
-    return NextResponse.json({ error: "Party not found" }, { status: 400 });
+    return NextResponse.json({ error: "Organisation not found" }, { status: 400 });
   }
 
   if (versionParam) {
@@ -85,7 +86,7 @@ export async function DELETE(
 
     await logActivity({
       type: "DOCUMENT_DELETE",
-      summary: `${activeParty.code} deleted v${versionNumber} of ${document.name} from ${document.folder.code}`,
+      summary: `${getPartyLabel(activeParty.code)} deleted v${versionNumber} of ${document.name} from ${document.folder.code}`,
       actorPartyId: activeParty.id,
       metadata: {
         documentId: id,
@@ -124,7 +125,7 @@ export async function DELETE(
 
   await logActivity({
     type: "DOCUMENT_DELETE",
-    summary: `${activeParty.code} deleted ${document.name} from ${document.folder.code}`,
+    summary: `${getPartyLabel(activeParty.code)} deleted ${document.name} from ${document.folder.code}`,
     actorPartyId: activeParty.id,
     metadata: {
       documentId: id,

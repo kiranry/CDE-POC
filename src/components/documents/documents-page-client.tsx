@@ -1,13 +1,15 @@
 "use client";
 
 import { PartyCode } from "@prisma/client";
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FolderPanel, FolderParty } from "@/components/documents/folder-panel";
 import { UploadDialog } from "@/components/documents/upload-dialog";
+import { UploadIcon } from "@/components/icons/upload-icon";
 import { VersionHistoryDialog } from "@/components/documents/version-history-dialog";
 import { canUploadToFolder } from "@/lib/documents";
 import { formatBytes } from "@/lib/files";
+import { getPartyLabel } from "@/lib/party-labels";
 
 type DocumentRow = {
   id: string;
@@ -25,8 +27,11 @@ type DocumentRow = {
 };
 
 export function DocumentsPageClient() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const historyFromUrl = searchParams.get("history");
+  const historyOpenedRef = useRef<string | null>(null);
 
   const [parties, setParties] = useState<FolderParty[]>([]);
   const [activePartyCode, setActivePartyCode] = useState<PartyCode | null>(
@@ -39,6 +44,7 @@ export function DocumentsPageClient() {
     id: string;
     label: string;
   } | null>(null);
+  const [uploadJustCompleted, setUploadJustCompleted] = useState(false);
   const [historyDoc, setHistoryDoc] = useState<{
     id: string;
     name: string;
@@ -61,6 +67,10 @@ export function DocumentsPageClient() {
       setActivePartyCode(data.activePartyCode);
     }
     setLoading(false);
+  }, [selectedFolderId]);
+
+  useEffect(() => {
+    setUploadJustCompleted(false);
   }, [selectedFolderId]);
 
   useEffect(() => {
@@ -97,23 +107,46 @@ export function DocumentsPageClient() {
     loadDocuments();
   }
 
+  const closeHistory = useCallback(() => {
+    setHistoryDoc(null);
+    if (!searchParams.get("history")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("history");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   useEffect(() => {
-    if (!historyFromUrl) return;
+    if (!historyFromUrl) {
+      historyOpenedRef.current = null;
+      return;
+    }
+    if (historyOpenedRef.current === historyFromUrl) return;
+
     const doc = documents.find((d) => d.id === historyFromUrl);
     if (doc) {
+      historyOpenedRef.current = historyFromUrl;
       setHistoryDoc({ id: doc.id, name: doc.name });
       return;
     }
+
+    let cancelled = false;
     fetch("/api/documents")
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled || historyOpenedRef.current === historyFromUrl) return;
         const found = (data.documents ?? []).find(
-          (d: { id: string }) => d.id === historyFromUrl,
+          (d: { id: string; name: string }) => d.id === historyFromUrl,
         );
         if (found) {
+          historyOpenedRef.current = historyFromUrl;
           setHistoryDoc({ id: found.id, name: found.name });
         }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [historyFromUrl, documents]);
 
   const selectedFolder = parties
@@ -148,19 +181,20 @@ export function DocumentsPageClient() {
         <button
           type="button"
           disabled={!canUploadToSelectedFolder}
-          onClick={() =>
-            selectedFolderId &&
-            folderLabel &&
-            setUploadTarget({ id: selectedFolderId, label: folderLabel })
-          }
-          className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => {
+            if (!selectedFolderId || !folderLabel) return;
+            setUploadJustCompleted(false);
+            setUploadTarget({ id: selectedFolderId, label: folderLabel });
+          }}
+          className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
           title={
             selectedFolderId && !canUploadToSelectedFolder
-              ? `You can only upload to Party ${activePartyCode}'s folders`
+              ? `You can only upload to ${getPartyLabel(activePartyCode)}'s folders`
               : undefined
           }
         >
-          Upload to folder
+          {!uploadJustCompleted && <UploadIcon className="h-4 w-4" />}
+          {uploadJustCompleted ? "Uploaded" : "Upload to folder"}
         </button>
       </div>
 
@@ -173,8 +207,8 @@ export function DocumentsPageClient() {
 
       {selectedFolderId && !canUploadToSelectedFolder && (
         <p className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          Viewing Party {selectedFolderParty}&apos;s folder. You can download
-          files here, but only Party {activePartyCode} can upload to its own
+          Viewing {getPartyLabel(selectedFolderParty)}&apos;s folder. You can download
+          files here, but only {getPartyLabel(activePartyCode)} can upload to its own
           folders.
         </p>
       )}
@@ -226,7 +260,7 @@ export function DocumentsPageClient() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-medium">
-                          Party {doc.uploadedByParty}
+                          {doc.uploadedByPartyName}
                         </span>
                         <br />
                         <span className="text-xs text-slate-500">
@@ -284,7 +318,10 @@ export function DocumentsPageClient() {
           folderId={uploadTarget.id}
           folderLabel={uploadTarget.label}
           onClose={() => setUploadTarget(null)}
-          onUploaded={loadDocuments}
+          onUploaded={() => {
+            setUploadJustCompleted(true);
+            loadDocuments();
+          }}
         />
       )}
 
@@ -292,7 +329,7 @@ export function DocumentsPageClient() {
         <VersionHistoryDialog
           documentId={historyDoc.id}
           documentName={historyDoc.name}
-          onClose={() => setHistoryDoc(null)}
+          onClose={closeHistory}
           onChanged={loadDocuments}
         />
       )}

@@ -2,7 +2,7 @@ import { PartyCode } from "@prisma/client";
 import { cookies } from "next/headers";
 import { ACTIVE_PARTY_COOKIE } from "@/lib/party-labels";
 
-export { ACTIVE_PARTY_COOKIE, PARTY_LABELS } from "@/lib/party-labels";
+export { ACTIVE_PARTY_COOKIE, PARTY_LABELS, getPartyLabel } from "@/lib/party-labels";
 
 export async function getActivePartyCode(
   loggedInPartyCode: PartyCode,

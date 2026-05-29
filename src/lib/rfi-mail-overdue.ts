@@ -1,4 +1,5 @@
 import { getPartyContactEmail, sendMail } from "@/lib/mail";
+import { getPartyLabel } from "@/lib/party-labels";
 import type { OverdueRfiRow } from "@/lib/rfi-overdue";
 
 function formatRfiDetails(row: OverdueRfiRow): string[] {
@@ -6,8 +7,8 @@ function formatRfiDetails(row: OverdueRfiRow): string[] {
     `RFI ID: ${row.displayId}`,
     `Subject: ${row.subject}`,
     `Status: ${row.status}`,
-    `Raised by: Party ${row.raiserPartyCode} — ${row.raiserPartyName}`,
-    `Assigned to: Party ${row.respondentPartyCode} — ${row.respondentPartyName}`,
+    `Raised by: ${getPartyLabel(row.raiserPartyCode)} — ${row.raiserPartyName}`,
+    `Assigned to: ${getPartyLabel(row.respondentPartyCode)} — ${row.respondentPartyName}`,
     `Raised on: ${row.raisedAt.toLocaleString()}`,
     `Due date: ${row.dueAt.toLocaleDateString()}`,
     `Days overdue: ${row.daysOverdue}`,
@@ -40,7 +41,7 @@ export async function sendRfiOverdueEmails(row: OverdueRfiRow): Promise<void> {
       to: adminEmail,
       subject: `[PRHUB CDE] OVERDUE RFI — admin alert: ${row.displayId}`,
       text: [
-        `Hello VISL (PMC / Party A),`,
+        `Hello VISL (PMC),`,
         ``,
         `The following RFI has not been completed within the required 7 calendar days.`,
         `This enquiry is overdue and requires your oversight.`,
@@ -77,8 +78,8 @@ export async function sendRfiOverdueEmails(row: OverdueRfiRow): Promise<void> {
         `Your role: ${role}`,
         `RFI ID: ${row.displayId}`,
         `Subject: ${row.subject}`,
-        `Raised by: Party ${row.raiserPartyCode}`,
-        `Assigned to: Party ${row.respondentPartyCode}`,
+        `Raised by: ${getPartyLabel(row.raiserPartyCode)}`,
+        `Assigned to: ${getPartyLabel(row.respondentPartyCode)}`,
         `Due date: ${row.dueAt.toLocaleDateString()} (${row.daysOverdue} day(s) overdue)`,
         ``,
         isRespondent

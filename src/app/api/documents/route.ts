@@ -5,6 +5,7 @@ import { notifyDocumentUpload } from "@/lib/notifications";
 import { isAllowedFile } from "@/lib/files";
 import { canDeleteDocument, canUploadToFolder } from "@/lib/documents";
 import { getActivePartyCode } from "@/lib/party-context";
+import { getPartyLabel } from "@/lib/party-labels";
 import { prisma } from "@/lib/prisma";
 import { buildStorageKey, putFile } from "@/lib/storage";
 export async function GET(request: Request) {
@@ -104,13 +105,13 @@ export async function POST(request: Request) {
     where: { code: activePartyCode },
   });
   if (!activeParty) {
-    return NextResponse.json({ error: "Party not found" }, { status: 400 });
+    return NextResponse.json({ error: "Organisation not found" }, { status: 400 });
   }
 
   if (!canUploadToFolder(folder.partyCode, activePartyCode)) {
     return NextResponse.json(
       {
-        error: `You can only upload to Party ${activePartyCode}'s folders`,
+        error: `You can only upload to ${getPartyLabel(activePartyCode)}'s folders`,
       },
       { status: 403 },
     );
@@ -164,8 +165,8 @@ export async function POST(request: Request) {
     versionNumber === 1 ? "DOCUMENT_UPLOAD" : "DOCUMENT_VERSION";
   const summary =
     versionNumber === 1
-      ? `${activeParty.code} uploaded ${file.name} to ${folder.code}`
-      : `${activeParty.code} uploaded v${versionNumber} of ${file.name} to ${folder.code}`;
+      ? `${getPartyLabel(activeParty.code)} uploaded ${file.name} to ${folder.code}`
+      : `${getPartyLabel(activeParty.code)} uploaded v${versionNumber} of ${file.name} to ${folder.code}`;
 
   await logActivity({
     type: activityType,

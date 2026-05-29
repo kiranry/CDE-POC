@@ -1,5 +1,6 @@
 import { PartyCode } from "@prisma/client";
 import { sendMailToParties } from "@/lib/mail";
+import { getPartyLabel } from "@/lib/party-labels";
 
 export async function sendRfiRaisedEmails(input: {
   displayId: string;
@@ -28,8 +29,8 @@ export async function sendRfiRaisedEmails(input: {
             ``,
             `RFI ID: ${input.displayId}`,
             `Subject: ${input.subject}`,
-            `Raised by: Party ${input.raiserPartyCode}`,
-            `Assigned to: Party ${input.respondentPartyCode}`,
+            `Raised by: ${getPartyLabel(input.raiserPartyCode)}`,
+            `Assigned to: ${getPartyLabel(input.respondentPartyCode)}`,
             `Due date: ${dueLabel}`,
             ``,
             `Description:`,
@@ -44,8 +45,8 @@ export async function sendRfiRaisedEmails(input: {
             ``,
             `RFI ID: ${input.displayId}`,
             `Subject: ${input.subject}`,
-            `Raised by: Party ${input.raiserPartyCode}`,
-            `Assigned to: Party ${input.respondentPartyCode} (${email})`,
+            `Raised by: ${getPartyLabel(input.raiserPartyCode)}`,
+            `Assigned to: ${getPartyLabel(input.respondentPartyCode)} (${email})`,
             `Due date: ${dueLabel}`,
             ``,
             `You must provide a written resolution within 7 calendar days.`,
@@ -83,7 +84,7 @@ export async function sendRfiResolvedEmails(input: {
             ``,
             `RFI ID: ${input.displayId}`,
             `Subject: ${input.subject}`,
-            `Resolved by: Party ${input.respondentPartyCode}`,
+            `Resolved by: ${getPartyLabel(input.respondentPartyCode)}`,
             ``,
             `Resolution:`,
             input.resolutionText,
@@ -96,7 +97,7 @@ export async function sendRfiResolvedEmails(input: {
             `You resolved RFI ${input.displayId}.`,
             ``,
             `Subject: ${input.subject}`,
-            `Raised by: Party ${input.raiserPartyCode}`,
+            `Raised by: ${getPartyLabel(input.raiserPartyCode)}`,
             ``,
             `Resolution:`,
             input.resolutionText,
@@ -130,7 +131,7 @@ export async function sendRfiEscalatedEmails(input: {
             ``,
             `RFI ID: ${input.displayId}`,
             `Subject: ${input.subject}`,
-            `Raised by: Party ${input.raiserPartyCode}`,
+            `Raised by: ${getPartyLabel(input.raiserPartyCode)}`,
             ``,
             `Immediate action is required.`,
             ``,
@@ -143,7 +144,7 @@ export async function sendRfiEscalatedEmails(input: {
             ``,
             `RFI ID: ${input.displayId}`,
             `Subject: ${input.subject}`,
-            `Assigned to: Party ${input.respondentPartyCode}`,
+            `Assigned to: ${getPartyLabel(input.respondentPartyCode)}`,
             ``,
             `View in PRHUB CDE: ${appUrl}/rfi`,
           ].join("\n");

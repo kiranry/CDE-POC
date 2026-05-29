@@ -1,5 +1,6 @@
 import { PartyCode, RfiStatus } from "@prisma/client";
 import { logActivity } from "@/lib/activity";
+import { getPartyLabel } from "@/lib/party-labels";
 import { getDaysRemaining, isRfiOverdue } from "@/lib/rfi";
 import { sendRfiOverdueEmails } from "@/lib/rfi-mail-overdue";
 import { notifyRfiOverdue } from "@/lib/notifications";
@@ -77,7 +78,7 @@ export async function processOverdueRfis(): Promise<{
     await sendRfiOverdueEmails(row);
     await logActivity({
       type: "RFI_OVERDUE",
-      summary: `${row.displayId} overdue — not resolved within 7 days (Party ${row.respondentPartyCode})`,
+      summary: `${row.displayId} overdue — not resolved within 7 days (${getPartyLabel(row.respondentPartyCode)})`,
       actorPartyId: undefined,
       metadata: {
         rfiId: row.id,

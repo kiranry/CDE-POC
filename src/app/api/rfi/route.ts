@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     where: { code: activePartyCode },
   });
   if (!raiserParty) {
-    return NextResponse.json({ error: "Party not found" }, { status: 400 });
+    return NextResponse.json({ error: "Organisation not found" }, { status: 400 });
   }
 
   try {

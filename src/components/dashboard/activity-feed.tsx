@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { formatBytes } from "@/lib/files";
+import { getPartyLabel } from "@/lib/party-labels";
 
 export type ActivityItem = {
   id: string;
@@ -104,7 +105,7 @@ export function ActivityFeed({
                 </span>
                 {a.actorPartyCode && (
                   <span className="text-[10px] text-slate-500">
-                    Party {a.actorPartyCode}
+                    {a.actorPartyName ?? getPartyLabel(a.actorPartyCode)}
                   </span>
                 )}
                 <span className="text-[10px] text-slate-400">
@@ -163,7 +164,7 @@ export function RecentUploadsList({ uploads }: { uploads: RecentUpload[] }) {
                 <span className="text-xs text-slate-400">v{u.version}</span>
               </div>
               <p className="mt-1 text-xs text-slate-600">
-                Party {u.uploadedByParty} · {u.uploadedByUser} ·{" "}
+                {u.uploadedByPartyName} · {u.uploadedByUser} ·{" "}
                 {formatBytes(u.sizeBytes)}
               </p>
               <p className="text-[10px] text-slate-400">

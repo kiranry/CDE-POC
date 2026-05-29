@@ -1,6 +1,7 @@
 import { PartyCode, Prisma, RfiStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+import { getPartyLabel } from "@/lib/party-labels";
 import {
   notifyRfiEscalated,
   notifyRfiRaised,
@@ -181,7 +182,7 @@ export async function createRfi(input: CreateRfiInput) {
 
   await logActivity({
     type: "RFI_CREATED",
-    summary: `${displayId} raised by Party ${input.raiserPartyCode} against Party ${input.respondentPartyCode}`,
+    summary: `${displayId} raised by ${getPartyLabel(input.raiserPartyCode)} against ${getPartyLabel(input.respondentPartyCode)}`,
     actorPartyId: input.raiserPartyId,
     metadata: {
       rfiId: rfi.id,
@@ -256,7 +257,7 @@ export async function markRfiPending(params: {
 
   await logActivity({
     type: "RFI_UPDATED",
-    summary: `${rfi.displayId} marked pending by Party ${params.actorPartyCode}`,
+    summary: `${rfi.displayId} marked pending by ${getPartyLabel(params.actorPartyCode)}`,
     actorPartyId: params.actorPartyId,
     metadata: { rfiId: rfi.id, displayId: rfi.displayId },
   });
@@ -306,7 +307,7 @@ export async function resolveRfi(params: {
 
   await logActivity({
     type: "RFI_RESOLVED",
-    summary: `${rfi.displayId} resolved by Party ${params.actorPartyCode}`,
+    summary: `${rfi.displayId} resolved by ${getPartyLabel(params.actorPartyCode)}`,
     actorPartyId: params.actorPartyId,
     metadata: { rfiId: rfi.id, displayId: rfi.displayId },
   });
@@ -329,7 +330,7 @@ export async function escalateRfi(params: {
   note?: string;
 }) {
   if (params.actorPartyCode !== "A") {
-    throw new Error("Only Party A (PMC) can escalate RFIs");
+    throw new Error("Only VISL (PMC) can escalate RFIs");
   }
 
   const rfi = await prisma.rfi.findUnique({

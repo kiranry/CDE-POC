@@ -8,3 +8,13 @@ export const PARTY_LABELS: Record<PartyCode, string> = {
   C: "Adani",
   D: "KRCL (Konkan Railway)",
 };
+
+export function getPartyLabel(
+  code: PartyCode | string | null | undefined,
+): string {
+  if (!code) return "Unknown";
+  if (code in PARTY_LABELS) {
+    return PARTY_LABELS[code as PartyCode];
+  }
+  return code;
+}

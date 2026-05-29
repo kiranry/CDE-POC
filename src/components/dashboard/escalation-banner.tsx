@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getPartyLabel } from "@/lib/party-labels";
 
 export type EscalatedRfi = {
   id: string;
@@ -44,7 +45,7 @@ export function EscalationBanner({ rfis }: { rfis: EscalatedRfi[] }) {
               <span className="mx-2 text-red-300">·</span>
               <span className="text-slate-800">{r.subject}</span>
               <span className="mt-0.5 block text-xs text-slate-500">
-                Assigned to Party {r.against}
+                Assigned to {getPartyLabel(r.against)}
               </span>
             </Link>
           </li>

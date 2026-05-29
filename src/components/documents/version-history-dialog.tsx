@@ -105,7 +105,7 @@ export function VersionHistoryDialog({
                   <tr key={v.id} className="border-b border-slate-100">
                     <td className="py-3 pr-4 font-mono">v{v.version}</td>
                     <td className="py-3 pr-4">
-                      <span className="font-medium">Party {v.uploadedByParty}</span>
+                      <span className="font-medium">{v.uploadedByPartyName}</span>
                       <br />
                       <span className="text-xs text-slate-500">
                         {v.uploadedByUser}

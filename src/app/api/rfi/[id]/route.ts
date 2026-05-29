@@ -108,7 +108,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     where: { code: activePartyCode },
   });
   if (!actorParty) {
-    return NextResponse.json({ error: "Party not found" }, { status: 400 });
+    return NextResponse.json({ error: "Organisation not found" }, { status: 400 });
   }
 
   const body = await request.json();

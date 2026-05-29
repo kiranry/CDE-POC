@@ -43,9 +43,6 @@ export default async function StakeholdersPage() {
               key={party.id}
               className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
             >
-              <p className="text-xs font-bold uppercase text-blue-700">
-                Party {party.code}
-              </p>
               <h2 className="mt-1 font-semibold text-slate-900">{party.name}</h2>
               <p className="text-sm text-slate-500">{party.roleLabel}</p>
               {party.contactEmail && (

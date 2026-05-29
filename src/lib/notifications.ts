@@ -5,6 +5,7 @@ import {
   sendRfiResolvedEmails,
 } from "@/lib/rfi-mail";
 import type { OverdueRfiRow } from "@/lib/rfi-overdue";
+import { getPartyLabel } from "@/lib/party-labels";
 import { prisma } from "@/lib/prisma";
 
 const ALL_PARTIES: PartyCode[] = ["A", "B", "C", "D"];
@@ -61,7 +62,7 @@ export async function notifyDocumentUpload(
     input.version === 1
       ? `New document uploaded`
       : `Document updated (v${input.version})`;
-  const message = `Party ${input.uploaderPartyCode} uploaded "${input.documentName}"${versionLabel} to ${input.folderCode} — ${input.folderName}`;
+  const message = `${getPartyLabel(input.uploaderPartyCode)} uploaded "${input.documentName}"${versionLabel} to ${input.folderCode} — ${input.folderName}`;
 
   const payload = buildUploadPayload(input);
 
@@ -165,7 +166,7 @@ export async function notifyRfiRaised(
         type: "RFI_CONFIRMATION",
         recipientPartyId: party.id,
         title: `RFI submitted: ${input.displayId}`,
-        message: `Your RFI "${input.subject}" was raised against Party ${input.respondentPartyCode}. Due ${dueLabel}.`,
+        message: `Your RFI "${input.subject}" was raised against ${getPartyLabel(input.respondentPartyCode)}. Due ${dueLabel}.`,
         payload,
       });
     } else if (party.code === input.respondentPartyCode) {
@@ -173,7 +174,7 @@ export async function notifyRfiRaised(
         type: "RFI_RAISED",
         recipientPartyId: party.id,
         title: `New RFI: ${input.displayId}`,
-        message: `Party ${input.raiserPartyCode} raised "${input.subject}". You must resolve within 7 calendar days (due ${dueLabel}).`,
+        message: `${getPartyLabel(input.raiserPartyCode)} raised "${input.subject}". You must resolve within 7 calendar days (due ${dueLabel}).`,
         payload,
       });
     } else if (party.code === "A") {
@@ -181,7 +182,7 @@ export async function notifyRfiRaised(
         type: "RFI_RAISED",
         recipientPartyId: party.id,
         title: `RFI raised (PMC): ${input.displayId}`,
-        message: `Party ${input.raiserPartyCode} raised "${input.subject}" against Party ${input.respondentPartyCode}. Due ${dueLabel}.`,
+        message: `${getPartyLabel(input.raiserPartyCode)} raised "${input.subject}" against ${getPartyLabel(input.respondentPartyCode)}. Due ${dueLabel}.`,
         payload,
       });
     }
@@ -227,7 +228,7 @@ export async function notifyRfiResolved(input: {
         type: "RFI_RESOLVED" as NotificationType,
         recipientPartyId: party.id,
         title: `RFI resolved (PMC): ${input.displayId}`,
-        message: `RFI "${input.subject}" between Party ${input.raiserPartyCode} and Party ${input.respondentPartyCode} has been resolved.`,
+        message: `RFI "${input.subject}" between ${getPartyLabel(input.raiserPartyCode)} and ${getPartyLabel(input.respondentPartyCode)} has been resolved.`,
         payload,
       };
     }
@@ -237,8 +238,8 @@ export async function notifyRfiResolved(input: {
       recipientPartyId: party.id,
       title: `RFI resolved: ${input.displayId}`,
       message: isRaiser
-        ? `Your RFI "${input.subject}" has been resolved by Party ${input.respondentPartyCode}.`
-        : `You resolved RFI "${input.subject}" raised by Party ${input.raiserPartyCode}.`,
+        ? `Your RFI "${input.subject}" has been resolved by ${getPartyLabel(input.respondentPartyCode)}.`
+        : `You resolved RFI "${input.subject}" raised by ${getPartyLabel(input.raiserPartyCode)}.`,
       payload,
     };
   });
@@ -281,7 +282,7 @@ export async function notifyRfiEscalated(input: {
         type: "RFI_ESCALATED" as NotificationType,
         recipientPartyId: party.id,
         title: `RFI escalated (PMC): ${input.displayId}`,
-        message: `Overdue RFI "${input.subject}" (Party ${input.raiserPartyCode} → Party ${input.respondentPartyCode}) was escalated.`,
+        message: `Overdue RFI "${input.subject}" (${getPartyLabel(input.raiserPartyCode)} → ${getPartyLabel(input.respondentPartyCode)}) was escalated.`,
         payload,
       };
     }
@@ -292,7 +293,7 @@ export async function notifyRfiEscalated(input: {
       title: `RFI escalated: ${input.displayId}`,
       message: isRespondent
         ? `PMC escalated overdue RFI "${input.subject}". Immediate action required.`
-        : `Your RFI "${input.subject}" was escalated by PMC (assigned to Party ${input.respondentPartyCode}).`,
+        : `Your RFI "${input.subject}" was escalated by PMC (assigned to ${getPartyLabel(input.respondentPartyCode)}).`,
       payload,
     };
   });
@@ -331,7 +332,7 @@ export async function notifyRfiOverdue(row: OverdueRfiRow): Promise<void> {
         type: "RFI_OVERDUE" as NotificationType,
         recipientPartyId: party.id,
         title: `Overdue RFI (admin): ${row.displayId}`,
-        message: `RFI "${row.subject}" is ${row.daysOverdue} day(s) overdue. Raised by Party ${row.raiserPartyCode}, assigned to Party ${row.respondentPartyCode}. Status: ${row.status}.`,
+        message: `RFI "${row.subject}" is ${row.daysOverdue} day(s) overdue. Raised by ${getPartyLabel(row.raiserPartyCode)}, assigned to ${getPartyLabel(row.respondentPartyCode)}. Status: ${row.status}.`,
         payload,
       };
     }
@@ -340,7 +341,7 @@ export async function notifyRfiOverdue(row: OverdueRfiRow): Promise<void> {
         type: "RFI_OVERDUE" as NotificationType,
         recipientPartyId: party.id,
         title: `Your RFI is overdue: ${row.displayId}`,
-        message: `"${row.subject}" has not been completed within 7 days. Assigned to Party ${row.respondentPartyCode}.`,
+        message: `"${row.subject}" has not been completed within 7 days. Assigned to ${getPartyLabel(row.respondentPartyCode)}.`,
         payload,
       };
     }
@@ -348,7 +349,7 @@ export async function notifyRfiOverdue(row: OverdueRfiRow): Promise<void> {
       type: "RFI_OVERDUE" as NotificationType,
       recipientPartyId: party.id,
       title: `Overdue RFI assigned to you: ${row.displayId}`,
-      message: `"${row.subject}" from Party ${row.raiserPartyCode} is ${row.daysOverdue} day(s) overdue. Please resolve urgently.`,
+      message: `"${row.subject}" from ${getPartyLabel(row.raiserPartyCode)} is ${row.daysOverdue} day(s) overdue. Please resolve urgently.`,
       payload,
     };
   });
