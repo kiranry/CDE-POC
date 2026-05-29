@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getActivePartyCode } from "@/lib/party-context";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -7,6 +8,8 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const activePartyCode = await getActivePartyCode(session.user.partyCode);
 
   const folders = await prisma.folder.findMany({
     orderBy: { sortOrder: "asc" },
@@ -24,5 +27,5 @@ export async function GET() {
       .map((f) => ({ id: f.id, code: f.code, name: f.name })),
   }));
 
-  return NextResponse.json({ parties: byParty });
+  return NextResponse.json({ parties: byParty, activePartyCode });
 }

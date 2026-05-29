@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { notifyDocumentUpload } from "@/lib/notifications";
 import { isAllowedFile } from "@/lib/files";
+import { canDeleteDocument, canUploadToFolder } from "@/lib/documents";
 import { getActivePartyCode } from "@/lib/party-context";
 import { prisma } from "@/lib/prisma";
 import { buildStorageKey, putFile } from "@/lib/storage";
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const folderId = searchParams.get("folderId");
+  const activePartyCode = await getActivePartyCode(session.user.partyCode);
 
   const documents = await prisma.document.findMany({
     where: folderId ? { folderId } : undefined,
@@ -21,7 +23,6 @@ export async function GET(request: Request) {
       folder: true,
       versions: {
         orderBy: { version: "desc" },
-        take: 1,
         include: {
           uploadedByParty: true,
           uploadedByUser: true,
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
 
   const items = documents.map((doc) => {
     const latest = doc.versions[0];
+    const versionPartyCodes = doc.versions.map((v) => v.uploadedByParty.code);
     return {
       id: doc.id,
       name: doc.name,
@@ -46,10 +48,11 @@ export async function GET(request: Request) {
       uploadedAt: latest?.uploadedAt,
       sizeBytes: latest ? Number(latest.sizeBytes) : 0,
       mimeType: latest?.mimeType,
+      canDelete: canDeleteDocument(versionPartyCodes, activePartyCode),
     };
   });
 
-  return NextResponse.json({ documents: items });
+  return NextResponse.json({ documents: items, activePartyCode });
 }
 
 export async function POST(request: Request) {
@@ -102,6 +105,15 @@ export async function POST(request: Request) {
   });
   if (!activeParty) {
     return NextResponse.json({ error: "Party not found" }, { status: 400 });
+  }
+
+  if (!canUploadToFolder(folder.partyCode, activePartyCode)) {
+    return NextResponse.json(
+      {
+        error: `You can only upload to Party ${activePartyCode}'s folders`,
+      },
+      { status: 403 },
+    );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());

@@ -115,6 +115,13 @@ async function getPartiesByCodes(codes: PartyCode[]) {
   });
 }
 
+/** Include VISL (Party A) on all RFI notifications for PMC oversight. */
+function getRfiRecipientCodes(
+  ...codes: PartyCode[]
+): PartyCode[] {
+  return [...new Set<PartyCode>([...codes, "A"])];
+}
+
 export type RfiRaisedNotificationInput = {
   displayId: string;
   subject: string;
@@ -125,14 +132,16 @@ export type RfiRaisedNotificationInput = {
   dueAt: Date;
 };
 
-/** FR-016, FR-017: in-app alerts only for raiser (confirmation) and respondent. */
+/** RFI raised: raiser, respondent, and VISL (Party A) for PMC oversight. */
 export async function notifyRfiRaised(
   input: RfiRaisedNotificationInput,
 ): Promise<void> {
-  const parties = await getPartiesByCodes([
-    input.raiserPartyCode,
-    input.respondentPartyCode,
-  ]);
+  const parties = await getPartiesByCodes(
+    getRfiRecipientCodes(
+      input.raiserPartyCode,
+      input.respondentPartyCode,
+    ),
+  );
   const dueLabel = input.dueAt.toLocaleDateString();
   const payload = {
     displayId: input.displayId,
@@ -167,6 +176,14 @@ export async function notifyRfiRaised(
         message: `Party ${input.raiserPartyCode} raised "${input.subject}". You must resolve within 7 calendar days (due ${dueLabel}).`,
         payload,
       });
+    } else if (party.code === "A") {
+      notifications.push({
+        type: "RFI_RAISED",
+        recipientPartyId: party.id,
+        title: `RFI raised (PMC): ${input.displayId}`,
+        message: `Party ${input.raiserPartyCode} raised "${input.subject}" against Party ${input.respondentPartyCode}. Due ${dueLabel}.`,
+        payload,
+      });
     }
   }
 
@@ -191,10 +208,12 @@ export async function notifyRfiResolved(input: {
   respondentPartyCode: PartyCode;
   resolutionText: string;
 }): Promise<void> {
-  const parties = await getPartiesByCodes([
-    input.raiserPartyCode,
-    input.respondentPartyCode,
-  ]);
+  const parties = await getPartiesByCodes(
+    getRfiRecipientCodes(
+      input.raiserPartyCode,
+      input.respondentPartyCode,
+    ),
+  );
   const payload = {
     displayId: input.displayId,
     subject: input.subject,
@@ -203,6 +222,15 @@ export async function notifyRfiResolved(input: {
   } satisfies Prisma.InputJsonObject;
 
   const notifications = parties.map((party) => {
+    if (party.code === "A") {
+      return {
+        type: "RFI_RESOLVED" as NotificationType,
+        recipientPartyId: party.id,
+        title: `RFI resolved (PMC): ${input.displayId}`,
+        message: `RFI "${input.subject}" between Party ${input.raiserPartyCode} and Party ${input.respondentPartyCode} has been resolved.`,
+        payload,
+      };
+    }
     const isRaiser = party.code === input.raiserPartyCode;
     return {
       type: "RFI_RESOLVED" as NotificationType,
@@ -234,10 +262,12 @@ export async function notifyRfiEscalated(input: {
   raiserPartyCode: PartyCode;
   respondentPartyCode: PartyCode;
 }): Promise<void> {
-  const parties = await getPartiesByCodes([
-    input.raiserPartyCode,
-    input.respondentPartyCode,
-  ]);
+  const parties = await getPartiesByCodes(
+    getRfiRecipientCodes(
+      input.raiserPartyCode,
+      input.respondentPartyCode,
+    ),
+  );
   const payload = {
     displayId: input.displayId,
     subject: input.subject,
@@ -246,6 +276,15 @@ export async function notifyRfiEscalated(input: {
   } satisfies Prisma.InputJsonObject;
 
   const notifications = parties.map((party) => {
+    if (party.code === "A") {
+      return {
+        type: "RFI_ESCALATED" as NotificationType,
+        recipientPartyId: party.id,
+        title: `RFI escalated (PMC): ${input.displayId}`,
+        message: `Overdue RFI "${input.subject}" (Party ${input.raiserPartyCode} → Party ${input.respondentPartyCode}) was escalated.`,
+        payload,
+      };
+    }
     const isRespondent = party.code === input.respondentPartyCode;
     return {
       type: "RFI_ESCALATED" as NotificationType,
@@ -272,11 +311,9 @@ export async function notifyRfiEscalated(input: {
 
 /** Overdue alert: Party A (admin) + raiser + respondent only. */
 export async function notifyRfiOverdue(row: OverdueRfiRow): Promise<void> {
-  const parties = await getPartiesByCodes([
-    "A",
-    row.raiserPartyCode,
-    row.respondentPartyCode,
-  ]);
+  const parties = await getPartiesByCodes(
+    getRfiRecipientCodes(row.raiserPartyCode, row.respondentPartyCode),
+  );
 
   const payload = {
     rfiId: row.id,

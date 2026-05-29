@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { canDeleteDocument, canDeleteVersion } from "@/lib/documents";
 import { getActivePartyCode } from "@/lib/party-context";
 import { prisma } from "@/lib/prisma";
 import { deleteFile } from "@/lib/storage";
@@ -22,7 +23,10 @@ export async function DELETE(
     where: { id },
     include: {
       folder: true,
-      versions: { orderBy: { version: "desc" } },
+      versions: {
+        orderBy: { version: "desc" },
+        include: { uploadedByParty: true },
+      },
     },
   });
 
@@ -47,6 +51,15 @@ export async function DELETE(
     const docVersion = document.versions.find((v) => v.version === versionNumber);
     if (!docVersion) {
       return NextResponse.json({ error: "Version not found" }, { status: 404 });
+    }
+
+    if (
+      !canDeleteVersion(docVersion.uploadedByParty.code, activePartyCode)
+    ) {
+      return NextResponse.json(
+        { error: "You can only delete files uploaded by your party" },
+        { status: 403 },
+      );
     }
 
     await deleteFile(docVersion.storageKey);
@@ -88,6 +101,14 @@ export async function DELETE(
       version: versionNumber,
       documentRemoved: remaining.length === 0,
     });
+  }
+
+  const partyCodes = document.versions.map((v) => v.uploadedByParty.code);
+  if (!canDeleteDocument(partyCodes, activePartyCode)) {
+    return NextResponse.json(
+      { error: "You can only delete files uploaded by your party" },
+      { status: 403 },
+    );
   }
 
   for (const v of document.versions) {

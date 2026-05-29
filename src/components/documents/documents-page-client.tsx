@@ -1,10 +1,12 @@
 "use client";
 
+import { PartyCode } from "@prisma/client";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { FolderPanel, FolderParty } from "@/components/documents/folder-panel";
 import { UploadDialog } from "@/components/documents/upload-dialog";
 import { VersionHistoryDialog } from "@/components/documents/version-history-dialog";
+import { canUploadToFolder } from "@/lib/documents";
 import { formatBytes } from "@/lib/files";
 
 type DocumentRow = {
@@ -19,6 +21,7 @@ type DocumentRow = {
   uploadedByUser: string;
   uploadedAt: string;
   sizeBytes: number;
+  canDelete: boolean;
 };
 
 export function DocumentsPageClient() {
@@ -26,6 +29,9 @@ export function DocumentsPageClient() {
   const historyFromUrl = searchParams.get("history");
 
   const [parties, setParties] = useState<FolderParty[]>([]);
+  const [activePartyCode, setActivePartyCode] = useState<PartyCode | null>(
+    null,
+  );
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +48,7 @@ export function DocumentsPageClient() {
     const res = await fetch("/api/folders");
     const data = await res.json();
     setParties(data.parties ?? []);
+    setActivePartyCode(data.activePartyCode ?? null);
   }, []);
 
   const loadDocuments = useCallback(async () => {
@@ -50,6 +57,9 @@ export function DocumentsPageClient() {
     const res = await fetch(`/api/documents${qs}`);
     const data = await res.json();
     setDocuments(data.documents ?? []);
+    if (data.activePartyCode) {
+      setActivePartyCode(data.activePartyCode);
+    }
     setLoading(false);
   }, [selectedFolderId]);
 
@@ -62,10 +72,13 @@ export function DocumentsPageClient() {
   }, [loadDocuments]);
 
   useEffect(() => {
-    const onPartyChange = () => loadDocuments();
+    const onPartyChange = () => {
+      loadFolders();
+      loadDocuments();
+    };
     window.addEventListener("cde-party-changed", onPartyChange);
     return () => window.removeEventListener("cde-party-changed", onPartyChange);
-  }, [loadDocuments]);
+  }, [loadDocuments, loadFolders]);
 
   async function deleteDocument(doc: DocumentRow) {
     if (
@@ -107,6 +120,17 @@ export function DocumentsPageClient() {
     .flatMap((p) => p.subfolders)
     .find((f) => f.id === selectedFolderId);
 
+  const selectedFolderParty = selectedFolderId
+    ? parties.find((p) =>
+        p.subfolders.some((f) => f.id === selectedFolderId),
+      )?.partyCode
+    : null;
+
+  const canUploadToSelectedFolder =
+    !!selectedFolderParty &&
+    !!activePartyCode &&
+    canUploadToFolder(selectedFolderParty, activePartyCode);
+
   const folderLabel = selectedFolder
     ? `${selectedFolder.code} — ${selectedFolder.name}`
     : null;
@@ -123,13 +147,18 @@ export function DocumentsPageClient() {
         </div>
         <button
           type="button"
-          disabled={!selectedFolderId}
+          disabled={!canUploadToSelectedFolder}
           onClick={() =>
             selectedFolderId &&
             folderLabel &&
             setUploadTarget({ id: selectedFolderId, label: folderLabel })
           }
           className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+          title={
+            selectedFolderId && !canUploadToSelectedFolder
+              ? `You can only upload to Party ${activePartyCode}'s folders`
+              : undefined
+          }
         >
           Upload to folder
         </button>
@@ -137,14 +166,25 @@ export function DocumentsPageClient() {
 
       {!selectedFolderId && (
         <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Select a subfolder on the left to filter documents and enable upload.
+          Select a subfolder on the left to filter documents. You can view and
+          download files from any party&apos;s folders.
+        </p>
+      )}
+
+      {selectedFolderId && !canUploadToSelectedFolder && (
+        <p className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Viewing Party {selectedFolderParty}&apos;s folder. You can download
+          files here, but only Party {activePartyCode} can upload to its own
+          folders.
         </p>
       )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <FolderPanel
+          key={activePartyCode ?? "none"}
           parties={parties}
           selectedFolderId={selectedFolderId}
+          activePartyCode={activePartyCode}
           onSelectFolder={setSelectedFolderId}
         />
 
@@ -219,13 +259,15 @@ export function DocumentsPageClient() {
                           >
                             History
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteDocument(doc)}
-                            className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                          {doc.canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => deleteDocument(doc)}
+                              className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

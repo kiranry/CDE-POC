@@ -11,6 +11,7 @@ type Version = {
   uploadedAt: string;
   sizeLabel: string;
   description: string | null;
+  canDelete: boolean;
 };
 
 export function VersionHistoryDialog({
@@ -122,14 +123,16 @@ export function VersionHistoryDialog({
                         >
                           Download
                         </a>
-                        <button
-                          type="button"
-                          disabled={deleting === v.version}
-                          onClick={() => deleteVersion(v)}
-                          className="rounded border border-red-200 px-3 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {deleting === v.version ? "…" : "Delete"}
-                        </button>
+                        {v.canDelete && (
+                          <button
+                            type="button"
+                            disabled={deleting === v.version}
+                            onClick={() => deleteVersion(v)}
+                            className="rounded border border-red-200 px-3 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {deleting === v.version ? "…" : "Delete"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

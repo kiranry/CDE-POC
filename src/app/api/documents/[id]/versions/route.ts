@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { canDeleteVersion } from "@/lib/documents";
 import { formatBytes } from "@/lib/files";
+import { getActivePartyCode } from "@/lib/party-context";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -31,6 +33,8 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const activePartyCode = await getActivePartyCode(session.user.partyCode);
+
   return NextResponse.json({
     document: {
       id: document.id,
@@ -48,6 +52,8 @@ export async function GET(
       sizeBytes: Number(v.sizeBytes),
       sizeLabel: formatBytes(v.sizeBytes),
       description: v.description,
+      canDelete: canDeleteVersion(v.uploadedByParty.code, activePartyCode),
     })),
+    activePartyCode,
   });
 }
