@@ -8,7 +8,7 @@ import { UploadDialog } from "@/components/documents/upload-dialog";
 import { UploadIcon } from "@/components/icons/upload-icon";
 import { VersionHistoryDialog } from "@/components/documents/version-history-dialog";
 import { canUploadToFolder } from "@/lib/documents";
-import { formatBytes } from "@/lib/files";
+import { formatBytes, isEvmScheduleFile } from "@/lib/files";
 import { getPartyLabel } from "@/lib/party-labels";
 
 type DocumentRow = {
@@ -49,6 +49,7 @@ export function DocumentsPageClient() {
     id: string;
     name: string;
   } | null>(null);
+  const [evmOpeningId, setEvmOpeningId] = useState<string | null>(null);
 
   const loadFolders = useCallback(async () => {
     const res = await fetch("/api/folders");
@@ -105,6 +106,28 @@ export function DocumentsPageClient() {
       return;
     }
     loadDocuments();
+  }
+
+  async function openInEvmDashboard(doc: DocumentRow) {
+    setEvmOpeningId(doc.id);
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/evm-import-token`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : "Could not open in EVM Dashboard",
+        );
+      }
+      window.open(data.importUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not open in EVM Dashboard");
+    } finally {
+      setEvmOpeningId(null);
+    }
   }
 
   const closeHistory = useCallback(() => {
@@ -293,6 +316,19 @@ export function DocumentsPageClient() {
                           >
                             History
                           </button>
+                          {isEvmScheduleFile(doc.name) && (
+                            <button
+                              type="button"
+                              disabled={evmOpeningId === doc.id}
+                              onClick={() => openInEvmDashboard(doc)}
+                              className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
+                              title="Open this schedule in the EVM Dashboard"
+                            >
+                              {evmOpeningId === doc.id
+                                ? "Opening…"
+                                : "EVM Dashboard"}
+                            </button>
+                          )}
                           {doc.canDelete && (
                             <button
                               type="button"

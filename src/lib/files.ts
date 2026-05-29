@@ -21,6 +21,15 @@ export function getExtension(filename: string): string {
   return idx >= 0 ? filename.slice(idx).toLowerCase() : "";
 }
 
+const EVM_SCHEDULE_EXTENSIONS = [".xml", ".mpp", ".mspdi"] as const;
+
+export function isEvmScheduleFile(filename: string): boolean {
+  const ext = getExtension(filename);
+  return EVM_SCHEDULE_EXTENSIONS.includes(
+    ext as (typeof EVM_SCHEDULE_EXTENSIONS)[number],
+  );
+}
+
 export function isAllowedFile(filename: string, mimeType?: string): boolean {
   const ext = getExtension(filename);
   if (!ALLOWED_EXTENSIONS.includes(ext as (typeof ALLOWED_EXTENSIONS)[number])) {
