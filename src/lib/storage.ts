@@ -3,6 +3,7 @@ import path from "path";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -13,6 +14,12 @@ const localRoot = path.join(
   process.cwd(),
   process.env.LOCAL_STORAGE_PATH ?? "storage/uploads",
 );
+
+export function isS3Storage(): boolean {
+  return storageMode === "s3";
+}
+
+const bucket = () => process.env.S3_BUCKET ?? "prhub-cde";
 
 let s3Client: S3Client | null = null;
 
@@ -81,6 +88,45 @@ export async function getFile(storageKey: string): Promise<Buffer> {
   return readFile(filePath);
 }
 
+/** Short-lived direct upload URL — browser uploads to R2 without passing through Vercel. */
+export async function getPresignedUploadUrl(
+  storageKey: string,
+  mimeType: string,
+  expiresIn = 1800,
+): Promise<string> {
+  if (!isS3Storage()) {
+    throw new Error("Presigned upload URLs require STORAGE_MODE=s3");
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: bucket(),
+    Key: storageKey,
+    ContentType: mimeType,
+  });
+
+  return getSignedUrl(getS3Client(), command, { expiresIn });
+}
+
+export async function headObject(
+  storageKey: string,
+): Promise<{ sizeBytes: number; contentType?: string }> {
+  if (!isS3Storage()) {
+    throw new Error("headObject requires STORAGE_MODE=s3");
+  }
+
+  const res = await getS3Client().send(
+    new HeadObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+    }),
+  );
+
+  return {
+    sizeBytes: res.ContentLength ?? 0,
+    contentType: res.ContentType,
+  };
+}
+
 /** Short-lived direct download URL — avoids Vercel function payload limits for large files. */
 export async function getPresignedDownloadUrl(
   storageKey: string,
@@ -88,17 +134,19 @@ export async function getPresignedDownloadUrl(
     expiresIn?: number;
     fileName?: string;
     mimeType?: string;
+    disposition?: "inline" | "attachment";
   },
 ): Promise<string> {
-  if (storageMode !== "s3") {
+  if (!isS3Storage()) {
     throw new Error("Presigned URLs require STORAGE_MODE=s3");
   }
 
+  const disposition = options?.disposition ?? "attachment";
   const command = new GetObjectCommand({
-    Bucket: process.env.S3_BUCKET ?? "prhub-cde",
+    Bucket: bucket(),
     Key: storageKey,
     ResponseContentDisposition: options?.fileName
-      ? `inline; filename="${options.fileName.replace(/"/g, "_")}"`
+      ? `${disposition}; filename="${options.fileName.replace(/"/g, "_")}"`
       : undefined,
     ResponseContentType: options?.mimeType,
   });

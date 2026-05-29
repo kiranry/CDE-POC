@@ -6,9 +6,7 @@ import {
 } from "@/lib/evm-import-token";
 import { isEvmScheduleFile } from "@/lib/files";
 import { prisma } from "@/lib/prisma";
-import { getFile, getPresignedDownloadUrl } from "@/lib/storage";
-
-const storageMode = process.env.STORAGE_MODE ?? "local";
+import { getPresignedDownloadUrl, isS3Storage } from "@/lib/storage";
 
 export async function OPTIONS(
   request: Request,
@@ -91,11 +89,12 @@ export async function GET(
 
   // Production (R2/S3): return a presigned URL so the browser fetches directly —
   // Vercel serverless functions cannot return bodies larger than ~4.5 MB.
-  if (storageMode === "s3") {
+  if (isS3Storage()) {
     const downloadUrl = await getPresignedDownloadUrl(docVersion.storageKey, {
       expiresIn: 15 * 60,
       fileName: document.name,
       mimeType: docVersion.mimeType || "application/xml",
+      disposition: "inline",
     });
 
     return NextResponse.json(
@@ -113,6 +112,7 @@ export async function GET(
     );
   }
 
+  const { getFile } = await import("@/lib/storage");
   const buffer = await getFile(docVersion.storageKey);
 
   return new NextResponse(new Uint8Array(buffer), {

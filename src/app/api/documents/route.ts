@@ -7,7 +7,7 @@ import { canDeleteDocument, canUploadToFolder } from "@/lib/documents";
 import { getActivePartyCode } from "@/lib/party-context";
 import { getPartyLabel } from "@/lib/party-labels";
 import { prisma } from "@/lib/prisma";
-import { buildStorageKey, putFile } from "@/lib/storage";
+import { buildStorageKey, isS3Storage, putFile } from "@/lib/storage";
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
@@ -19,7 +19,9 @@ export async function GET(request: Request) {
   const activePartyCode = await getActivePartyCode(session.user.partyCode);
 
   const documents = await prisma.document.findMany({
-    where: folderId ? { folderId } : undefined,
+    where: folderId
+      ? { folderId, versions: { some: {} } }
+      : { versions: { some: {} } },
     include: {
       folder: true,
       versions: {
@@ -118,6 +120,17 @@ export async function POST(request: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  if (isS3Storage() && buffer.length > 4 * 1024 * 1024) {
+    return NextResponse.json(
+      {
+        error:
+          "File is too large for server upload. Use the upload dialog (direct-to-storage upload).",
+      },
+      { status: 413 },
+    );
+  }
+
   const mimeType = file.type || "application/octet-stream";
 
   let document = await prisma.document.findUnique({

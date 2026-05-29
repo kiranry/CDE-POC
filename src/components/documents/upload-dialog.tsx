@@ -4,6 +4,11 @@ import { useRef, useState } from "react";
 import { UploadIcon } from "@/components/icons/upload-icon";
 import { ACCEPT_ATTRIBUTE } from "@/lib/files";
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function UploadDialog({
   folderId,
   folderLabel,
@@ -28,6 +33,79 @@ export function UploadDialog({
     }
   }
 
+  async function uploadViaApi(form: FormData) {
+    const res = await fetch("/api/documents", { method: "POST", body: form });
+    const text = await res.text();
+    let data: { error?: string } = {};
+    if (text) {
+      try {
+        data = JSON.parse(text) as { error?: string };
+      } catch {
+        throw new Error(
+          res.ok ? "Invalid server response" : `Upload failed (${res.status})`,
+        );
+      }
+    } else if (!res.ok) {
+      throw new Error(`Upload failed (${res.status})`);
+    }
+    if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
+  }
+
+  async function uploadDirectToStorage(selected: File) {
+    const initRes = await fetch("/api/documents/upload-init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folderId,
+        fileName: selected.name,
+        mimeType: selected.type || "application/octet-stream",
+        sizeBytes: selected.size,
+        description: description || undefined,
+      }),
+    });
+
+    const initData = await initRes.json().catch(() => ({}));
+    if (!initRes.ok) {
+      throw new Error(
+        typeof initData.error === "string"
+          ? initData.error
+          : `Upload init failed (${initRes.status})`,
+      );
+    }
+
+    const contentType =
+      (initData.headers?.["Content-Type"] as string | undefined) ||
+      selected.type ||
+      "application/octet-stream";
+
+    const putRes = await fetch(initData.uploadUrl as string, {
+      method: (initData.method as string) || "PUT",
+      headers: { "Content-Type": contentType },
+      body: selected,
+    });
+
+    if (!putRes.ok) {
+      throw new Error(
+        "Upload to storage failed. Check R2 CORS allows PUT from this CDE URL.",
+      );
+    }
+
+    const completeRes = await fetch("/api/documents/upload-complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadToken: initData.uploadToken }),
+    });
+
+    const completeData = await completeRes.json().catch(() => ({}));
+    if (!completeRes.ok) {
+      throw new Error(
+        typeof completeData.error === "string"
+          ? completeData.error
+          : `Upload finalize failed (${completeRes.status})`,
+      );
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) {
@@ -37,28 +115,19 @@ export function UploadDialog({
     setLoading(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("folderId", folderId);
-      if (description) form.append("description", description);
+      const modeRes = await fetch("/api/documents/upload-mode");
+      const modeData = await modeRes.json().catch(() => ({ directUpload: false }));
 
-      const res = await fetch("/api/documents", { method: "POST", body: form });
-      const text = await res.text();
-      let data: { error?: string } = {};
-      if (text) {
-        try {
-          data = JSON.parse(text) as { error?: string };
-        } catch {
-          throw new Error(
-            res.ok
-              ? "Invalid server response"
-              : `Upload failed (${res.status})`,
-          );
-        }
-      } else if (!res.ok) {
-        throw new Error(`Upload failed (${res.status})`);
+      if (modeData.directUpload) {
+        await uploadDirectToStorage(file);
+      } else {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("folderId", folderId);
+        if (description) form.append("description", description);
+        await uploadViaApi(form);
       }
-      if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
+
       window.dispatchEvent(new CustomEvent("cde-notifications-changed"));
       clearFile();
       onUploaded();
@@ -110,9 +179,7 @@ export function UploadDialog({
                   <p className="truncate text-sm font-medium text-slate-900">
                     {file.name}
                   </p>
-                  <p className="text-xs text-slate-500">
-                    {(file.size / 1024).toFixed(1)} KB
-                  </p>
+                  <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
                 </div>
                 <button
                   type="button"
