@@ -1,7 +1,9 @@
 "use client";
 
 import { PartyCode, RfiStatus } from "@prisma/client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ACCEPT_ATTRIBUTE } from "@/lib/files";
+import { uploadDocumentFile } from "@/lib/upload-client";
 
 type RfiDetail = {
   id: string;
@@ -12,7 +14,13 @@ type RfiDetail = {
   raisedByName: string;
   against: PartyCode;
   againstName: string;
-  relatedDocument: { id: string; name: string; folderCode: string } | null;
+  relatedDocument: {
+    id: string;
+    name: string;
+    folderId: string;
+    folderCode: string;
+    currentVersion: number;
+  } | null;
   raisedAt: string;
   dueAt: string;
   status: RfiStatus;
@@ -60,8 +68,10 @@ export function RfiDetailDialog({
   const [rfi, setRfi] = useState<RfiDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolutionText, setResolutionText] = useState("");
+  const [revisionFile, setRevisionFile] = useState<File | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const revisionInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +89,54 @@ export function RfiDetailDialog({
   useEffect(() => {
     load();
   }, [load]);
+
+  async function handleResolve() {
+    if (!resolutionText.trim()) {
+      setActionError("Resolution text is required");
+      return;
+    }
+
+    setActing(true);
+    setActionError(null);
+
+    try {
+      let revisionVersion: number | undefined;
+
+      if (revisionFile && rfi?.relatedDocument) {
+        const uploadResult = await uploadDocumentFile({
+          folderId: rfi.relatedDocument.folderId,
+          file: revisionFile,
+          description: `RFI ${rfi.displayId} resolution revision`,
+          parentDocumentId: rfi.relatedDocument.id,
+        });
+        revisionVersion = uploadResult.version;
+      }
+
+      const res = await fetch(`/api/rfi/${rfiId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve",
+          resolutionText,
+          revisionVersion,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? "Action failed");
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("cde-notifications-changed"));
+      setRevisionFile(null);
+      if (revisionInputRef.current) revisionInputRef.current.value = "";
+      await load();
+      onUpdated();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Resolve failed");
+    } finally {
+      setActing(false);
+    }
+  }
 
   async function runAction(
     action: "pending" | "resolve" | "escalate",
@@ -176,7 +234,8 @@ export function RfiDetailDialog({
               <p className="text-sm text-slate-600">
                 Related document:{" "}
                 <span className="font-medium">{rfi.relatedDocument.name}</span> (
-                {rfi.relatedDocument.folderCode})
+                {rfi.relatedDocument.folderCode}, v
+                {rfi.relatedDocument.currentVersion})
               </p>
             )}
 
@@ -222,15 +281,43 @@ export function RfiDetailDialog({
                         rows={3}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                       />
+                      {rfi.relatedDocument && (
+                        <div className="w-full rounded-md border border-slate-200 bg-white p-3">
+                          <p className="text-sm font-medium text-slate-800">
+                            Upload revision (optional)
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Attaches as v{rfi.relatedDocument.currentVersion + 1}{" "}
+                            of {rfi.relatedDocument.name} in{" "}
+                            {rfi.relatedDocument.folderCode}.
+                          </p>
+                          <input
+                            ref={revisionInputRef}
+                            type="file"
+                            accept={ACCEPT_ATTRIBUTE}
+                            className="mt-2 block w-full text-sm"
+                            onChange={(e) =>
+                              setRevisionFile(e.target.files?.[0] ?? null)
+                            }
+                          />
+                          {revisionFile && (
+                            <p className="mt-1 text-xs text-slate-600">
+                              Selected: {revisionFile.name}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <button
                         type="button"
                         disabled={acting || !resolutionText.trim()}
-                        onClick={() =>
-                          runAction("resolve", { resolutionText })
-                        }
+                        onClick={handleResolve}
                         className="rounded-md bg-green-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
                       >
-                        Resolve RFI
+                        {acting
+                          ? revisionFile
+                            ? "Uploading & resolving…"
+                            : "Resolving…"
+                          : "Resolve RFI"}
                       </button>
                     </>
                   )}

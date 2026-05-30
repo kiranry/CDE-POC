@@ -4,6 +4,7 @@ import { canDeleteVersion } from "@/lib/documents";
 import { formatBytes } from "@/lib/files";
 import { getActivePartyCode } from "@/lib/party-context";
 import { prisma } from "@/lib/prisma";
+import { fileNameFromStorageKey } from "@/lib/documents";
 
 export async function GET(
   _request: Request,
@@ -45,6 +46,7 @@ export async function GET(
     versions: document.versions.map((v) => ({
       id: v.id,
       version: v.version,
+      fileName: fileNameFromStorageKey(v.storageKey),
       uploadedByParty: v.uploadedByParty.code,
       uploadedByPartyName: v.uploadedByParty.name,
       uploadedByUser: v.uploadedByUser.name,
@@ -53,6 +55,7 @@ export async function GET(
       sizeLabel: formatBytes(v.sizeBytes),
       description: v.description,
       canDelete: canDeleteVersion(v.uploadedByParty.code, activePartyCode),
+      isLatest: v.version === document.currentVersion,
     })),
     activePartyCode,
   });

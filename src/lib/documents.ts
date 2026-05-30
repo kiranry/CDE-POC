@@ -23,3 +23,16 @@ export function canDeleteDocument(
     versionPartyCodes.every((code) => code === activePartyCode)
   );
 }
+
+export function fileNameFromStorageKey(storageKey: string): string {
+  const parts = storageKey.split("/");
+  return parts[parts.length - 1] ?? storageKey;
+}
+
+export function displayFileName(
+  documentName: string,
+  storageKey: string | undefined,
+): string {
+  if (!storageKey) return documentName;
+  return fileNameFromStorageKey(storageKey);
+}

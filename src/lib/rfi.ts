@@ -270,6 +270,7 @@ export async function resolveRfi(params: {
   resolutionText: string;
   actorPartyId: string;
   actorPartyCode: PartyCode;
+  revisionVersion?: number;
 }) {
   const rfi = await prisma.rfi.findUnique({
     where: { id: params.rfiId },
@@ -287,6 +288,10 @@ export async function resolveRfi(params: {
   }
 
   const fromStatus = rfi.status;
+  const resolutionNote = params.revisionVersion
+    ? `${params.resolutionText.trim()}\n\nRevision uploaded: v${params.revisionVersion}`
+    : params.resolutionText.trim();
+
   const updated = await prisma.rfi.update({
     where: { id: params.rfiId },
     data: {
@@ -302,7 +307,7 @@ export async function resolveRfi(params: {
     fromStatus,
     toStatus: "RESOLVED",
     actorPartyId: params.actorPartyId,
-    note: params.resolutionText.trim(),
+    note: resolutionNote,
   });
 
   await logActivity({

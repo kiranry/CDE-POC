@@ -1,8 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { UploadIcon } from "@/components/icons/upload-icon";
 import { ACCEPT_ATTRIBUTE } from "@/lib/files";
+import {
+  fetchFolderDocuments,
+  FolderDocumentOption,
+  uploadDocumentFile,
+} from "@/lib/upload-client";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -14,95 +19,45 @@ export function UploadDialog({
   folderLabel,
   onClose,
   onUploaded,
+  initialParentDocumentId,
+  lockRevisionMode = false,
 }: {
   folderId: string;
   folderLabel: string;
   onClose: () => void;
   onUploaded: () => void;
+  initialParentDocumentId?: string;
+  lockRevisionMode?: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
+  const [uploadMode, setUploadMode] = useState<"new" | "revision">(
+    initialParentDocumentId || lockRevisionMode ? "revision" : "new",
+  );
+  const [parentDocumentId, setParentDocumentId] = useState(
+    initialParentDocumentId ?? "",
+  );
+  const [versionInput, setVersionInput] = useState("");
+  const [folderDocuments, setFolderDocuments] = useState<FolderDocumentOption[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchFolderDocuments(folderId).then(setFolderDocuments);
+  }, [folderId]);
+
+  const selectedParent = folderDocuments.find((d) => d.id === parentDocumentId);
+  const suggestedVersion = selectedParent
+    ? selectedParent.currentVersion + 1
+    : 1;
 
   function clearFile() {
     setFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
-    }
-  }
-
-  async function uploadViaApi(form: FormData) {
-    const res = await fetch("/api/documents", { method: "POST", body: form });
-    const text = await res.text();
-    let data: { error?: string } = {};
-    if (text) {
-      try {
-        data = JSON.parse(text) as { error?: string };
-      } catch {
-        throw new Error(
-          res.ok ? "Invalid server response" : `Upload failed (${res.status})`,
-        );
-      }
-    } else if (!res.ok) {
-      throw new Error(`Upload failed (${res.status})`);
-    }
-    if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
-  }
-
-  async function uploadDirectToStorage(selected: File) {
-    const initRes = await fetch("/api/documents/upload-init", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        folderId,
-        fileName: selected.name,
-        mimeType: selected.type || "application/octet-stream",
-        sizeBytes: selected.size,
-        description: description || undefined,
-      }),
-    });
-
-    const initData = await initRes.json().catch(() => ({}));
-    if (!initRes.ok) {
-      throw new Error(
-        typeof initData.error === "string"
-          ? initData.error
-          : `Upload init failed (${initRes.status})`,
-      );
-    }
-
-    const contentType =
-      (initData.headers?.["Content-Type"] as string | undefined) ||
-      selected.type ||
-      "application/octet-stream";
-
-    const putRes = await fetch(initData.uploadUrl as string, {
-      method: (initData.method as string) || "PUT",
-      headers: { "Content-Type": contentType },
-      body: selected,
-    });
-
-    if (!putRes.ok) {
-      throw new Error(
-        "Upload to storage failed. Check R2 CORS allows PUT from this CDE URL.",
-      );
-    }
-
-    const completeRes = await fetch("/api/documents/upload-complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uploadToken: initData.uploadToken }),
-    });
-
-    const completeData = await completeRes.json().catch(() => ({}));
-    if (!completeRes.ok) {
-      throw new Error(
-        typeof completeData.error === "string"
-          ? completeData.error
-          : `Upload finalize failed (${completeRes.status})`,
-      );
     }
   }
 
@@ -112,21 +67,29 @@ export function UploadDialog({
       setError("Please select a file");
       return;
     }
+    if (uploadMode === "revision" && !parentDocumentId) {
+      setError("Select the base document (v1) for this revision");
+      return;
+    }
+
+    const parsedVersion =
+      versionInput.trim() === "" ? undefined : parseInt(versionInput, 10);
+    if (parsedVersion != null && (!Number.isInteger(parsedVersion) || parsedVersion < 1)) {
+      setError("Version must be a whole number of at least 1");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const modeRes = await fetch("/api/documents/upload-mode");
-      const modeData = await modeRes.json().catch(() => ({ directUpload: false }));
-
-      if (modeData.directUpload) {
-        await uploadDirectToStorage(file);
-      } else {
-        const form = new FormData();
-        form.append("file", file);
-        form.append("folderId", folderId);
-        if (description) form.append("description", description);
-        await uploadViaApi(form);
-      }
+      await uploadDocumentFile({
+        folderId,
+        file,
+        description: description || undefined,
+        parentDocumentId:
+          uploadMode === "revision" ? parentDocumentId : undefined,
+        versionNumber: parsedVersion,
+      });
 
       window.dispatchEvent(new CustomEvent("cde-notifications-changed"));
       clearFile();
@@ -142,13 +105,98 @@ export function UploadDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Upload document</h2>
+        <h2 className="text-lg font-semibold text-slate-900">
+          {lockRevisionMode ? "Upload revision" : "Upload document"}
+        </h2>
         <p className="mt-1 text-sm text-slate-500">Folder: {folderLabel}</p>
         <p className="mt-1 text-xs text-amber-700">
           Files are stored for download only — no in-app preview.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {!lockRevisionMode && (
+            <div>
+              <span className="block text-sm font-medium text-slate-700">
+                Upload type
+              </span>
+              <div className="mt-2 flex gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="uploadMode"
+                    checked={uploadMode === "new"}
+                    onChange={() => {
+                      setUploadMode("new");
+                      setParentDocumentId("");
+                      setVersionInput("");
+                    }}
+                  />
+                  New document (v1)
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="uploadMode"
+                    checked={uploadMode === "revision"}
+                    onChange={() => setUploadMode("revision")}
+                  />
+                  New revision
+                </label>
+              </div>
+            </div>
+          )}
+
+          {uploadMode === "revision" && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Base document (v1)
+              </label>
+              <select
+                value={parentDocumentId}
+                onChange={(e) => {
+                  setParentDocumentId(e.target.value);
+                  setVersionInput("");
+                }}
+                required
+                disabled={lockRevisionMode && !!initialParentDocumentId}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                <option value="">Select document…</option>
+                {folderDocuments.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.name} (current v{doc.currentVersion})
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Revisions are grouped under the selected document. Older versions
+                appear in version history.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Version number{" "}
+              <span className="font-normal text-slate-500">(optional)</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={versionInput}
+              onChange={(e) => setVersionInput(e.target.value)}
+              placeholder={
+                uploadMode === "revision" && selectedParent
+                  ? `Auto (v${suggestedVersion})`
+                  : "Auto (v1)"
+              }
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Leave blank to use the next version automatically.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700">
               File
@@ -222,7 +270,7 @@ export function UploadDialog({
               ) : (
                 <>
                   <UploadIcon className="h-4 w-4" />
-                  Upload
+                  {uploadMode === "revision" ? "Upload revision" : "Upload"}
                 </>
               )}
             </button>

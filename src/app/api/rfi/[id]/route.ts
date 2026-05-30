@@ -52,7 +52,9 @@ export async function GET(_request: Request, context: RouteContext) {
         ? {
             id: rfi.relatedDocument.id,
             name: rfi.relatedDocument.name,
+            folderId: rfi.relatedDocument.folderId,
             folderCode: rfi.relatedDocument.folder.code,
+            currentVersion: rfi.relatedDocument.currentVersion,
           }
         : null,
       raisedAt: rfi.raisedAt,
@@ -124,11 +126,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     } else if (action === "resolve") {
       const resolutionText =
         typeof body.resolutionText === "string" ? body.resolutionText : "";
+      const revisionVersion =
+        body.revisionVersion != null && Number.isInteger(body.revisionVersion)
+          ? (body.revisionVersion as number)
+          : undefined;
       await resolveRfi({
         rfiId: id,
         resolutionText,
         actorPartyId: actorParty.id,
         actorPartyCode: activePartyCode,
+        revisionVersion,
       });
     } else if (action === "escalate") {
       const note = typeof body.note === "string" ? body.note : undefined;

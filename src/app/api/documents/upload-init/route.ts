@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAllowedFile } from "@/lib/files";
 import { canUploadToFolder } from "@/lib/documents";
+import { resolveUploadTarget } from "@/lib/document-upload";
 import { getActivePartyCode } from "@/lib/party-context";
 import { getPartyLabel } from "@/lib/party-labels";
 import { prisma } from "@/lib/prisma";
@@ -46,6 +47,11 @@ export async function POST(request: Request) {
   const mimeType = (body.mimeType as string | undefined) || "application/octet-stream";
   const sizeBytes = Number(body.sizeBytes);
   const description = (body.description as string | undefined) ?? undefined;
+  const parentDocumentId = (body.parentDocumentId as string | undefined) || undefined;
+  const versionNumber =
+    body.versionNumber != null && Number.isInteger(body.versionNumber)
+      ? (body.versionNumber as number)
+      : null;
 
   if (!folderId || !fileName || !Number.isFinite(sizeBytes) || sizeBytes <= 0) {
     return NextResponse.json(
@@ -89,51 +95,46 @@ export async function POST(request: Request) {
     );
   }
 
-  let document = await prisma.document.findUnique({
-    where: { name_folderId: { name: fileName, folderId } },
-  });
-
-  let isNewDocument = false;
-  let versionNumber: number;
-
-  if (document) {
-    versionNumber = document.currentVersion + 1;
-  } else {
-    isNewDocument = true;
-    versionNumber = 1;
-    document = await prisma.document.create({
-      data: {
-        name: fileName,
-        folderId,
-        currentVersion: 0,
-      },
+  try {
+    const resolved = await resolveUploadTarget({
+      folderId,
+      fileName,
+      parentDocumentId,
+      versionNumber,
     });
+
+    const storageKey = buildStorageKey(
+      resolved.documentId,
+      resolved.versionNumber,
+      fileName,
+    );
+    const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType);
+
+    const uploadToken = createUploadToken({
+      documentId: resolved.documentId,
+      versionNumber: resolved.versionNumber,
+      storageKey,
+      folderId,
+      fileName,
+      mimeType,
+      sizeBytes,
+      description,
+      userId: dbUser.id,
+      partyId: activeParty.id,
+      isNewDocument: resolved.isNewDocument,
+    });
+
+    return NextResponse.json({
+      uploadUrl,
+      uploadToken,
+      documentId: resolved.documentId,
+      versionNumber: resolved.versionNumber,
+      storageKey,
+      method: "PUT",
+      headers: { "Content-Type": mimeType },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upload init failed";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  const storageKey = buildStorageKey(document.id, versionNumber, fileName);
-  const uploadUrl = await getPresignedUploadUrl(storageKey, mimeType);
-
-  const uploadToken = createUploadToken({
-    documentId: document.id,
-    versionNumber,
-    storageKey,
-    folderId,
-    fileName,
-    mimeType,
-    sizeBytes,
-    description,
-    userId: dbUser.id,
-    partyId: activeParty.id,
-    isNewDocument,
-  });
-
-  return NextResponse.json({
-    uploadUrl,
-    uploadToken,
-    documentId: document.id,
-    versionNumber,
-    storageKey,
-    method: "PUT",
-    headers: { "Content-Type": mimeType },
-  });
 }

@@ -18,6 +18,7 @@ type DocumentRow = {
   folderCode: string;
   folderName: string;
   currentVersion: number;
+  versionCount: number;
   uploadedByParty: string;
   uploadedByPartyName: string;
   uploadedByUser: string;
@@ -43,6 +44,8 @@ export function DocumentsPageClient() {
   const [uploadTarget, setUploadTarget] = useState<{
     id: string;
     label: string;
+    parentDocumentId?: string;
+    lockRevision?: boolean;
   } | null>(null);
   const [uploadJustCompleted, setUploadJustCompleted] = useState(false);
   const [historyDoc, setHistoryDoc] = useState<{
@@ -277,7 +280,14 @@ export function DocumentsPageClient() {
                 <tbody>
                   {documents.map((doc) => (
                     <tr key={doc.id} className="border-b border-slate-100">
-                      <td className="px-4 py-3 font-medium">{doc.name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {doc.name}
+                        {doc.versionCount > 1 && (
+                          <span className="ml-2 text-xs font-normal text-slate-500">
+                            ({doc.versionCount} versions)
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-xs">
                         <span className="font-mono">{doc.folderCode}</span>
                       </td>
@@ -315,7 +325,27 @@ export function DocumentsPageClient() {
                             className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
                           >
                             History
+                            {doc.versionCount > 1 ? ` (${doc.versionCount})` : ""}
                           </button>
+                          {canUploadToSelectedFolder &&
+                            selectedFolderId === doc.folderId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!folderLabel) return;
+                                  setUploadJustCompleted(false);
+                                  setUploadTarget({
+                                    id: doc.folderId,
+                                    label: folderLabel,
+                                    parentDocumentId: doc.id,
+                                    lockRevision: true,
+                                  });
+                                }}
+                                className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800 hover:bg-blue-100"
+                              >
+                                Revision
+                              </button>
+                            )}
                           {isEvmScheduleFile(doc.name) && (
                             <button
                               type="button"
@@ -353,6 +383,8 @@ export function DocumentsPageClient() {
         <UploadDialog
           folderId={uploadTarget.id}
           folderLabel={uploadTarget.label}
+          initialParentDocumentId={uploadTarget.parentDocumentId}
+          lockRevisionMode={uploadTarget.lockRevision}
           onClose={() => setUploadTarget(null)}
           onUploaded={() => {
             setUploadJustCompleted(true);
@@ -365,6 +397,22 @@ export function DocumentsPageClient() {
         <VersionHistoryDialog
           documentId={historyDoc.id}
           documentName={historyDoc.name}
+          folderId={
+            documents.find((d) => d.id === historyDoc.id)?.folderId ??
+            selectedFolderId ??
+            undefined
+          }
+          folderLabel={
+            documents.find((d) => d.id === historyDoc.id)
+              ? `${documents.find((d) => d.id === historyDoc.id)!.folderCode} — ${documents.find((d) => d.id === historyDoc.id)!.folderName}`
+              : folderLabel ?? undefined
+          }
+          canUploadRevision={
+            !!canUploadToSelectedFolder &&
+            !!documents.find((d) => d.id === historyDoc.id) &&
+            documents.find((d) => d.id === historyDoc.id)!.folderId ===
+              selectedFolderId
+          }
           onClose={closeHistory}
           onChanged={loadDocuments}
         />

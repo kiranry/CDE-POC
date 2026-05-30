@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fileNameFromStorageKey } from "@/lib/documents";
 import { getPresignedDownloadUrl, isS3Storage } from "@/lib/storage";
 
 export async function GET(
@@ -34,9 +35,11 @@ export async function GET(
     return NextResponse.json({ error: "Version not found" }, { status: 404 });
   }
 
+  const downloadFileName = fileNameFromStorageKey(docVersion.storageKey);
+
   if (isS3Storage()) {
     const downloadUrl = await getPresignedDownloadUrl(docVersion.storageKey, {
-      fileName: document.name,
+      fileName: downloadFileName,
       mimeType: docVersion.mimeType,
       disposition: "attachment",
     });
@@ -49,7 +52,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": docVersion.mimeType,
-      "Content-Disposition": `attachment; filename="${document.name}"`,
+      "Content-Disposition": `attachment; filename="${downloadFileName}"`,
       "Content-Length": String(buffer.length),
     },
   });

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { logActivity } from "@/lib/activity";
-import { notifyDocumentUpload } from "@/lib/notifications";
-import { getPartyLabel } from "@/lib/party-labels";
+import { registerDocumentVersion } from "@/lib/document-upload";
 import { prisma } from "@/lib/prisma";
 import { deleteFile, headObject, isS3Storage } from "@/lib/storage";
 import { verifyUploadToken } from "@/lib/upload-token";
@@ -81,73 +79,34 @@ export async function POST(request: Request) {
     );
   }
 
-  const activeParty = await prisma.party.findUnique({
-    where: { id: payload.partyId },
-  });
-  if (!activeParty) {
-    return NextResponse.json({ error: "Organisation not found" }, { status: 400 });
-  }
-
-  const docVersion = await prisma.documentVersion.create({
-    data: {
-      documentId: document.id,
-      version: payload.versionNumber,
+  try {
+    const { document: updatedDoc, docVersion } = await registerDocumentVersion({
+      documentId: payload.documentId,
+      versionNumber: payload.versionNumber,
       storageKey: payload.storageKey,
+      fileName: payload.fileName,
       mimeType: payload.mimeType,
-      sizeBytes: BigInt(payload.sizeBytes),
+      sizeBytes: payload.sizeBytes,
       description: payload.description,
       uploadedByPartyId: payload.partyId,
       uploadedByUserId: payload.userId,
-    },
-    include: {
-      uploadedByParty: true,
-      uploadedByUser: true,
-    },
-  });
+    });
 
-  await prisma.document.update({
-    where: { id: document.id },
-    data: { currentVersion: payload.versionNumber },
-  });
-
-  const activityType =
-    payload.versionNumber === 1 ? "DOCUMENT_UPLOAD" : "DOCUMENT_VERSION";
-  const summary =
-    payload.versionNumber === 1
-      ? `${getPartyLabel(activeParty.code)} uploaded ${payload.fileName} to ${document.folder.code}`
-      : `${getPartyLabel(activeParty.code)} uploaded v${payload.versionNumber} of ${payload.fileName} to ${document.folder.code}`;
-
-  await logActivity({
-    type: activityType,
-    summary,
-    actorPartyId: activeParty.id,
-    metadata: {
-      documentId: document.id,
-      version: payload.versionNumber,
-      folderCode: document.folder.code,
-      fileName: payload.fileName,
-    },
-  });
-
-  await notifyDocumentUpload({
-    uploaderPartyCode: activeParty.code,
-    uploaderPartyName: activeParty.name,
-    uploaderUserName: docVersion.uploadedByUser.name,
-    documentName: payload.fileName,
-    folderCode: document.folder.code,
-    folderName: document.folder.name,
-    documentId: document.id,
-    version: payload.versionNumber,
-    uploadedAt: docVersion.uploadedAt,
-  });
-
-  return NextResponse.json({
-    document: {
-      id: document.id,
-      name: document.name,
-      version: payload.versionNumber,
-      uploadedByParty: docVersion.uploadedByParty.code,
-      uploadedAt: docVersion.uploadedAt,
-    },
-  });
+    return NextResponse.json({
+      document: {
+        id: updatedDoc.id,
+        name: updatedDoc.name,
+        version: payload.versionNumber,
+        uploadedByParty: docVersion.uploadedByParty.code,
+        uploadedAt: docVersion.uploadedAt,
+      },
+    });
+  } catch (err) {
+    await deleteFile(payload.storageKey);
+    if (payload.isNewDocument && document.versions.length === 0) {
+      await prisma.document.delete({ where: { id: document.id } }).catch(() => {});
+    }
+    const message = err instanceof Error ? err.message : "Upload finalize failed";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 }
